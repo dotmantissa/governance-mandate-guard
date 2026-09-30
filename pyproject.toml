@@ -1,0 +1,12 @@
+[project]
+name = "governance-mandate-guard"
+version = "1.0.0"
+description = "Governance Mandate Guard, a GenLayer primitive that gates DAO proposals on their own constitution and accumulated precedent"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v -p no:gltest"
+markers = [
+  "integration: live GenLayer network tests, enabled by setting GENLAYER_PRIVATE_KEY",
+]

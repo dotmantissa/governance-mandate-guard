@@ -179,9 +179,12 @@ class GenVMHost:
         self.emitted_events: list[dict] = []
         self.nondet_runs: list[dict] = []
         self.skip_validator = False
+        self._depth = 0
+        self._snapshot: dict[tuple[bytes, bytes], bytearray] | None = None
         self._next_address = 1
         self.ctx: bytes = b"\x00" * 20
         self.now_ts: int | None = None
+        self.clock_mode: str = "pinned"
         self._sender: bytes = b"\x00" * 20
         self._value: int = 0
 
@@ -559,7 +562,11 @@ class GenVMHost:
             chain_id=raw_message["chain_id"],
         )
 
-        clock = _PinnedClock(stamp) if self.now_ts is not None else None
+        clock = None
+        if self.clock_mode != "pinned":
+            clock = _PinnedClock(stamp, self.clock_mode)
+        elif self.now_ts is not None:
+            clock = _PinnedClock(stamp, "pinned")
         patched: list[tuple[types.ModuleType, typing.Any]] = []
         if clock is not None:
             for module in self._contract_modules():
@@ -574,6 +581,33 @@ class GenVMHost:
             genlayer_gl.message = saved_message
             genlayer_gl.message_raw = saved_raw
             self.ctx, self._sender, self._value = previous
+
+    @contextmanager
+    def transaction(self):
+        """
+        Apply GenVM revert semantics to the outermost call.
+
+        A transaction that fails applies no state change on chain, so the whole
+        storage image is snapshotted when the outermost call begins and restored
+        if that call raises. Nested calls, such as a synchronous view into another
+        contract, join the enclosing transaction rather than starting their own,
+        which is what lets a failing inner view be caught and handled without
+        discarding the caller's writes.
+        """
+        outermost = self._depth == 0
+        if outermost:
+            self._snapshot = {key: bytearray(value) for key, value in self._store.items()}
+        self._depth += 1
+        try:
+            yield
+        except BaseException:
+            if outermost and self._snapshot is not None:
+                self._store = {key: bytearray(value) for key, value in self._snapshot.items()}
+            raise
+        finally:
+            self._depth -= 1
+            if outermost:
+                self._snapshot = None
 
     def _contract_modules(self) -> list[types.ModuleType]:
         seen: list[types.ModuleType] = []
@@ -605,7 +639,7 @@ class GenVMHost:
         sender_bytes = bytes.fromhex((sender or self.new_address())[2:])
 
         storage_mod = self._module("genlayer.py.storage")
-        with self.context(address_bytes, sender_bytes, 0, is_init=True):
+        with self.transaction(), self.context(address_bytes, sender_bytes, 0, is_init=True):
             root = storage_mod.Root.get()
             root.lock_default()
             instance = root.get_contract_instance(contract_cls)
@@ -650,15 +684,31 @@ class _PinnedClock:
     Stands in for `datetime` inside a contract module so `datetime.now(tz)`
     returns the transaction time, which is what GenVM guarantees on chain.
     Every other attribute is forwarded to the real class.
+
+    Two failure modes exist so the contract's clock fallbacks can be exercised:
+    `broken_now` makes `now()` raise while leaving `fromisoformat` working, which
+    drives the contract onto the transaction datetime carried on the message;
+    `dead` breaks both, which drives it onto its fail-closed default.
     """
 
-    __slots__ = ("_stamp",)
+    __slots__ = ("_stamp", "_mode")
 
-    def __init__(self, stamp: int):
+    def __init__(self, stamp: int, mode: str = "pinned"):
         self._stamp = stamp
+        self._mode = mode
 
     def now(self, tz=None):
+        if self._mode in ("broken_now", "dead"):
+            raise RuntimeError("pinned clock unavailable")
         return datetime.fromtimestamp(self._stamp, tz or timezone.utc)
+
+    def fromisoformat(self, value):
+        if self._mode == "dead":
+            raise RuntimeError("datetime parsing unavailable")
+        return datetime.fromisoformat(value)
+
+    def fromtimestamp(self, stamp, tz=None):
+        return datetime.fromtimestamp(stamp, tz)
 
     def __getattr__(self, name):
         return getattr(datetime, name)
@@ -695,12 +745,13 @@ class Deployed:
             sender_bytes = bytes.fromhex(str(sender)[2:])
 
         storage_mod = self.host._module("genlayer.py.storage")
-        with self.host.context(self.address_bytes, sender_bytes, value):
-            instance = storage_mod.Root.get().get_contract_instance(self.contract_cls)
-            bound = getattr(type(instance), method, None)
-            if bound is None:
-                raise AttributeError(f"{self.contract_cls.__name__} has no method {method}")
-            return bound(instance, *args, **(kwargs or {}))
+        with self.host.transaction():
+            with self.host.context(self.address_bytes, sender_bytes, value):
+                instance = storage_mod.Root.get().get_contract_instance(self.contract_cls)
+                bound = getattr(type(instance), method, None)
+                if bound is None:
+                    raise AttributeError(f"{self.contract_cls.__name__} has no method {method}")
+                return bound(instance, *args, **(kwargs or {}))
 
     def __getattr__(self, method: str):
         if method.startswith("_"):

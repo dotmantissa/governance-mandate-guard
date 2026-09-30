@@ -416,6 +416,11 @@ def _clean_json(raw: typing.Any) -> dict:
     """
     Coerce a model reply into a dict, tolerating the usual damage: a prose
     preamble, a fenced code block, or a trailing comma before a closing brace.
+
+    A reply that cannot be recovered raises a classified LLM error rather than
+    letting a `json` exception escape. That classification is what the validator
+    error handler reads, and an unclassified exception would be compared as a VM
+    error instead of forcing the validator rotation a bad reply must force.
     """
     if isinstance(raw, dict):
         return raw
@@ -426,7 +431,12 @@ def _clean_json(raw: typing.Any) -> dict:
         if first >= 0 and last > first:
             txt = txt[first : last + 1]
         txt = re.sub(r",(?!\s*?[\{\[\"\'\w])", "", txt)
-        loaded = json.loads(txt)
+        try:
+            loaded = json.loads(txt)
+        except Exception:
+            raise gl.vm.UserError(
+                f"{ERROR_LLM} Adjudication reply could not be parsed as JSON"
+            )
         if isinstance(loaded, dict):
             return loaded
     raise gl.vm.UserError(f"{ERROR_LLM} Adjudication reply was not a JSON object")

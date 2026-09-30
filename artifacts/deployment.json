@@ -1,0 +1,79 @@
+{
+  "chainId": 61999,
+  "contracts": {
+    "GovernanceMandateGuard": {
+      "constructorArgs": [
+        "Governance Mandate Guard Registry"
+      ],
+      "contractAddress": "0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e",
+      "deploymentTransaction": "0x62c033bc6981c0864710d2e0e1830f8ec6ebf1547009a546897e90ea490bbcd9",
+      "explorer": "https://explorer-studio.genlayer.com/address/0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e",
+      "methods": 31,
+      "role": "the primitive",
+      "source": "contracts/governance_mandate_guard.py",
+      "sourceBytes": 104714,
+      "sourceSha256": "61239eb4fd1c76848f7158ab4d546328236dc6b2ea09949cbb8ccee493251393",
+      "viewMethods": 22,
+      "writeMethods": 9
+    },
+    "MandateGatedDAO": {
+      "constructorArgs": [
+        "0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e",
+        "meridian-dao",
+        3600,
+        1
+      ],
+      "contractAddress": "0x91e24D4CD36876219cD19Fa5aeC12bca322a680A",
+      "explorer": "https://explorer-studio.genlayer.com/address/0x91e24D4CD36876219cD19Fa5aeC12bca322a680A",
+      "methods": 11,
+      "role": "reference consumer, deployed by the live suite to prove the gate",
+      "source": "contracts/mandate_gated_dao.py",
+      "sourceBytes": 16476,
+      "sourceSha256": "f971a5db89dcf6e03b0993857cdea9b79fdef84c546079b1475b5ae9b43eaf20",
+      "viewMethods": 7,
+      "writeMethods": 4
+    }
+  },
+  "deployedSourceMatchesRepository": true,
+  "deployerAddress": "0xBC1399c55538eC034d4Da550C03c34Ae0C357f53",
+  "network": "studionet",
+  "primitive": "Governance Mandate Guard",
+  "recordedAt": "2026-09-30T11:14:00Z",
+  "rpc": "https://studio.genlayer.com/api",
+  "runner": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6",
+  "schemaMethods": [
+    "active_precedent_corpus",
+    "appeal_ruling",
+    "charter_exists",
+    "compliance_status",
+    "find_adjudication",
+    "get_amendment",
+    "get_charter",
+    "get_charter_count",
+    "get_charter_id_at",
+    "get_precedent",
+    "get_precedent_count",
+    "get_precedent_id_at",
+    "get_proposal",
+    "get_proposal_count",
+    "get_proposal_id_at",
+    "get_registry_info",
+    "get_ruling",
+    "get_ruling_revision",
+    "is_compliant",
+    "is_proposer_allowed",
+    "list_precedents",
+    "mark_landmark",
+    "overrule_precedent",
+    "ratify_amendment",
+    "register_charter",
+    "require_compliant",
+    "set_charter_active",
+    "set_proposer_allowed",
+    "submission_available_at",
+    "submit_proposal",
+    "transfer_stewardship"
+  ],
+  "sdkVersion": "v0.2.16",
+  "verifiedBy": "tests/test_live_studionet.py::test_deployed_source_matches_the_repository"
+}

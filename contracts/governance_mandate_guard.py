@@ -85,10 +85,11 @@ leader/validator pair through `gl.vm.run_nondet_unsafe`.
    leader's answer or ask an LLM whether the leader looked reasonable. It
    performs its own fetch and its own reasoning and then compares decisions.
 
-   Agreement requires all three of:
+   Agreement requires all four of:
 
        ruling               COMPLIANT | NON_COMPLIANT | AMENDMENT_REQUIRED
        mandate_class        the charter provision the ruling turned on
+       principle            the rule the ruling establishes as precedent
        constitution_drift   whether the live document still matches the pin
 
    `ruling` is what `is_compliant` returns, so it must be agreed. The mandate
@@ -104,6 +105,54 @@ leader/validator pair through `gl.vm.run_nondet_unsafe`.
    proposal implicates no provision, and requiring agreement on a field that
    carries no decision would manufacture disagreement.
 
+What later panels are allowed to read
+------------------------------------
+An adjudication also returns one prose sentence, the ruling principle, stating
+the rule the panel understood its decision to turn on. That sentence is kept on
+the ruling for the people who read the registry. It is not case law, and no
+later panel is ever shown it.
+
+The reason is measured rather than assumed. Five independent panels were given
+the identical prompt, the identical pinned constitution and the identical
+proposal. All five returned the same ruling and the same ground of decision,
+and all five wrote a different rule: one capped a single grant, one capped a
+calendar quarter, one added a review period as a condition, one dispensed with
+an authorisation another required, and one named no figure at all. A per-grant
+cap and a per-quarter cap decide five grants of 40,000 differently, so those
+are different rules, not different wordings of one rule.
+
+That rules out both ways of binding the sentence:
+
+   1. Comparing the leader's sentence against one the validator authored
+      itself. Honest panels disagree on the rule, so a majority never forms.
+      Measured on chain: 1 agreement in 5 on every adjudication, while the
+      methods that do not compare prose reached majority normally.
+
+   2. Having each validator check the leader's sentence against the
+      constitution it fetched itself. Each of those five rules is individually
+      defensible against the text, so such a check admits any of them and the
+      leader still chooses which one becomes binding. That is the same hole,
+      reached by a different route.
+
+Generalizing a rule from one decided case is underdetermined, which is why
+courts argue about holding and dicta. So the case law is not authored at all.
+`_render_holding` derives each precedent's holding from the three
+consensus-bound fields plus deterministic on-chain data: the proposal's own
+title and the charter version. Every validator would render byte-identical
+text, and `principle_digest` commits to it and is mixed into the corpus digest.
+
+A later panel therefore receives, for each prior case, the proposal that was
+decided, the ruling it received and the ground it was decided on, and reasons
+from that case to the one in front of it. That is what citing a precedent is,
+and it carries no unchecked input.
+
+The prose that is not bound is the prose no later panel reads. The ruling
+`principle`, `rationale`, `constitution_clause`, `required_amendments` and
+`cited_precedents` are reported for human review, never enter a corpus and
+never gate anything, so validators may word them freely. `_corpus_entry` is the
+complete list of what a later panel consumes, and a test holds it to being
+bound or derived field by field.
+
 Determinism boundary
 --------------------
 Everything that decides what the validators are asked is computed before the
@@ -112,6 +161,13 @@ validator: the proposal text, the pinned fingerprint, and the precedent corpus
 with its own Keccak-256 digest. Validators cannot be handed a different corpus
 than the leader, and the corpus digest is stored on the proposal so any later
 reviewer can confirm which body of case law produced the ruling.
+
+Nothing a panel reads is leader-authored and unchecked. Every field in a corpus
+entry is either deterministic (the ids, the charter version, the landmark flag,
+the pinned clock), consensus-bound (the ruling and the mandate class), or
+derived by the contract from those two plus the proposal's own title (the
+holding and its digest), so the case law that constrains a ruling in month
+twenty was agreed by the panels that sat in month two.
 
 Precedent selection is deterministic and bounded. Landmark rulings are taken
 first, most recent first, then ordinary non-overruled rulings, most recent
@@ -253,6 +309,16 @@ MAX_AMENDMENTS_LEN = 900
 MAX_CLAUSE_LEN = 300
 MAX_CITATIONS = 8
 
+# Ruling principle bounds. The principle is the prose sentence a panel records
+# beside its ruling. It is reported for human review and never read into a
+# precedent corpus, so it is not consensus-bound; these bounds only keep the
+# registry legible.
+#
+# A principle shorter than this cannot state a rule. "n/a", "none" and "ok" are
+# the replies this rejects, and rejecting them is what keeps an empty line out
+# of the registry.
+MIN_PRINCIPLE_LEN = 12
+
 # Document handling.
 MAX_DOC_CHARS = 20000    # constitution text passed to the model
 MAX_FETCH_BYTES = 400000 # hard cap on a fetched body before normalization
@@ -340,10 +406,21 @@ class Ruling:
     """
     The adjudicated outcome of record for a proposal.
 
-    `ruling` and `mandate_class` are the consensus-bound fields: every
-    validator that accepted this transaction independently reached the same
-    pair. The prose fields are the leader's, reported for human review and
-    never used as a gate.
+    `ruling`, `mandate_class` and `constitution_drift` are the consensus-bound
+    fields: every validator that accepted this transaction independently
+    reached the same ruling on the same ground against its own fetch of the
+    constitution.
+
+    `principle` is the sentence the panel recorded as the rule its decision
+    turned on. It is the leader's, reported for human review. It is not bound
+    and it is never read into a precedent corpus, so two validators may word it
+    completely differently. `rationale`, `constitution_clause`,
+    `required_amendments` and `cited_precedents` are unbound for the same
+    reason.
+
+    `principle_digest` commits to the derived holding this ruling generated,
+    which is the text that did enter the registry, so a reviewer can tie a
+    ruling to its case law without trusting either record separately.
     """
     proposal_id: str
     dao_id: str
@@ -362,6 +439,7 @@ class Ruling:
     adjudicated_at: u64
     revision: u32
     precedent_id: str
+    principle_digest: str
 
 
 @allow_storage
@@ -372,8 +450,24 @@ class Precedent:
 
     Every adjudication writes one of these, accepted or rejected, because a
     ruling that a proposal was permissible is as much a precedent as a ruling
-    that it was not. `principle` is the single-sentence statement of what the
-    ruling turned on, and it is the line that later adjudications read.
+    that it was not.
+
+    This record is what later adjudications read, so nothing in it is authored
+    by a leader. `principle` holds the derived holding `_render_holding` built
+    out of the consensus-bound ruling, ground and drift flag plus the
+    proposal's own title and the charter version, so every validator would
+    render the identical string. The sentence a panel wrote in its own words
+    stays on the `Ruling` record and is never copied here.
+
+    `principle_digest` commits to that derived text and is mixed into the
+    corpus digest, so the case law a past ruling was decided under is
+    verifiable rather than asserted.
+
+    Every other field is deterministic: the ids come from the DAO id and a
+    counter, `ruling` and `mandate_class` are consensus-bound, the version
+    comes from the charter, the timestamp from the pinned transaction clock,
+    and the landmark and overrule fields only ever change through a steward
+    call.
     """
     precedent_id: str
     dao_id: str
@@ -388,6 +482,7 @@ class Precedent:
     overruled_reason: str
     overruled_at: u64
     superseded_by: str
+    principle_digest: str
 
 
 @allow_storage
@@ -549,11 +644,15 @@ def _normalize_mandate_class(raw: typing.Any, ruling: str) -> str:
 
 def _decision_fields(verdict: dict) -> tuple[str, str, bool]:
     """
-    Extract the three consensus-bound fields from a parsed adjudication.
+    Extract the three closed-vocabulary consensus-bound fields.
 
-    This is the single definition of "the decision" and is called on the
-    leader's reply and on the validator's own reply, so both sides are compared
-    through identical normalization.
+    This is the single definition of "the outcome" and is called on the leader's
+    reply and on the validator's own reply, so both sides are compared through
+    identical normalization.
+
+    These three are the whole of what consensus binds. Everything a later panel
+    reads is either one of them or is derived from them by `_render_holding`,
+    which is why the prose a panel writes never needs to be compared.
     """
     ruling = _normalize_ruling(
         _first_present(verdict, "ruling", "verdict", "decision", "result", "status")
@@ -599,6 +698,105 @@ def _normalize_url(raw: str) -> str:
 def _normalize_text(raw: str) -> str:
     """Case-folded, whitespace-collapsed text for replay digests."""
     return re.sub(r"\s+", " ", str(raw).strip().lower())
+
+
+# ---------------------------------------------------------------------------
+# The ruling principle, and what later panels are allowed to read
+# ---------------------------------------------------------------------------
+#
+# Adjudication produces one prose sentence, the ruling principle, stating the
+# rule the panel thought its decision turned on. It is recorded on the ruling
+# because it is useful to a person reading the registry. It is not case law,
+# and nothing in this contract treats it as case law.
+#
+# That is a measured decision, not an assumed one. Five independent panels were
+# given the identical adjudication prompt, the identical pinned constitution
+# and the identical proposal. All five returned the same ruling and the same
+# ground of decision, and all five wrote a different rule: one capped a single
+# grant, one capped a calendar quarter, one added a review period as a
+# condition, one dispensed with an authorisation another required, and one
+# named no figure at all. A per-grant cap and a per-quarter cap decide five
+# grants of 40,000 differently, so those are different rules rather than
+# different wordings of one rule.
+#
+# Generalizing a rule from one decided case is underdetermined, which is why
+# courts argue about holding and dicta. A panel therefore cannot be asked to
+# agree on the sentence. Nor can a validator be asked to approve the leader's
+# sentence against the constitution: each of those five rules is individually
+# defensible against the text, so a plausibility check admits any of them and
+# the leader still chooses which one becomes binding. Both routes leave the
+# same hole, which is a leader legislating alone.
+#
+# What later panels read is therefore derived, never authored. `_render_holding`
+# builds a precedent's holding out of consensus-bound output and deterministic
+# on-chain data only, so any two validators render byte-identical text from the
+# same accepted payload. A later panel receives the proposal's own title as the
+# facts and the bound ruling and ground as the outcome, and applies them by
+# analogy. That is what citing a precedent is.
+
+
+def _fold_principle(raw: typing.Any) -> str:
+    """Lowercased, whitespace-collapsed text, punctuation intact."""
+    return re.sub(r"\s+", " ", str(raw).strip().lower())
+
+
+def _canonical_principle(raw: typing.Any) -> str:
+    """
+    The form of a principle that is stored and displayed.
+
+    Whitespace is collapsed, wrapping quotes are removed and the result is
+    bounded. Case and sentence punctuation are preserved, because the registry
+    is read by people: a rule should end in a full stop.
+    """
+    text = _as_text(raw, MAX_PRINCIPLE_LEN)
+    return text.strip().strip('"').strip("'").strip()
+
+
+def _principle_key(raw: typing.Any) -> str:
+    """
+    Case folded, every run of non alphanumeric characters reduced to one space.
+
+    This is what a stored digest commits to, so a reviewer can recompute the
+    digest from the registry text without having to reproduce its punctuation.
+    """
+    folded = _fold_principle(raw)
+    return re.sub(r"[^a-z0-9]+", " ", folded).strip()
+
+
+def _principle_digest(raw: typing.Any) -> str:
+    """Commitment to a canonical text."""
+    return _digest(["principle", _principle_key(raw)])
+
+
+def _render_holding(
+    ruling: str,
+    mandate_class: str,
+    drift: bool,
+    title: str,
+    charter_version: int,
+) -> str:
+    """
+    A precedent's holding, derived rather than authored.
+
+    Every input is either consensus-bound or deterministic. `ruling`,
+    `mandate_class` and `drift` are the three fields every validator compared
+    exactly before voting to accept. `title` is the proposer's own text, already
+    on chain and already bounded. `charter_version` is read from the charter.
+
+    Nothing a leader wrote freely reaches this string, so two validators
+    rendering it from the same accepted payload produce identical bytes, and the
+    case law a later panel reads carries no unchecked input. This is the whole
+    point of the function: it is the only source of a corpus holding.
+    """
+    ground = "" if mandate_class == MANDATE_NONE else f", on the ground of {mandate_class}"
+    drift_note = ""
+    if drift:
+        drift_note = (" The live constitution had drifted from the ratified text"
+                      " when this was decided.")
+    clean_title = _as_text(title, MAX_TITLE_LEN) or "untitled proposal"
+    return (f"Under charter v{int(charter_version)}, a proposal titled "
+            f"\"{clean_title}\" was ruled {ruling}{ground}.{drift_note}")
+
 
 
 def _normalize_document(raw: str) -> str:
@@ -917,13 +1115,39 @@ class GovernanceMandateGuard(gl.Contract):
         return selected
 
     def _corpus_entry(self, record: Precedent, landmark: bool) -> dict:
-        """One precedent as the adjudication sees it."""
+        """
+        One precedent as the adjudication sees it.
+
+        This dict is the complete set of fields a later panel consumes, so every
+        key in it must be consensus-bound or deterministic, with nothing
+        leader-authored passing through unchecked:
+
+            precedent_id      deterministic, DAO id plus a counter
+            proposal_id       deterministic, DAO id plus a counter
+            ruling            consensus-bound, exact
+            mandate_class     consensus-bound, exact
+            holding           derived by `_render_holding` from the bound
+                              ruling, ground and drift flag plus the proposal's
+                              own title and the charter version
+            holding_digest    deterministic from the derived holding
+            charter_version   deterministic, read from the charter
+            landmark          deterministic, set only by a steward call
+            decided_at        deterministic, the pinned transaction clock
+
+        No key here carries prose a panel wrote freely. The sentence a panel
+        records as its ruling principle lives on `Ruling` and stops there.
+
+        `tests/test_consensus.py::test_every_corpus_field_is_bound_or_deterministic`
+        holds this list to that promise, so a field added here later cannot
+        quietly reintroduce an unbound input to future adjudications.
+        """
         return {
             "precedent_id": str(record.precedent_id),
             "proposal_id": str(record.proposal_id),
             "ruling": str(record.ruling),
             "mandate_class": str(record.mandate_class),
-            "principle": str(record.principle),
+            "holding": str(record.principle),
+            "holding_digest": str(record.principle_digest),
             "charter_version": int(record.charter_version),
             "landmark": landmark,
             "decided_at": int(record.created_at),
@@ -942,12 +1166,20 @@ class GovernanceMandateGuard(gl.Contract):
             parts.append(entry["precedent_id"])
             parts.append(entry["ruling"])
             parts.append(entry["mandate_class"])
-            parts.append(_normalize_text(entry["principle"]))
+            parts.append(_normalize_text(entry["holding"]))
+            # The digest of the derived holding, so the commitment covers the
+            # case law as it was rendered and not only its current text.
+            parts.append(entry["holding_digest"])
         return _digest(parts)
 
     def _render_corpus(self, entries: list[dict], current_version: int) -> str:
         """
         Render the corpus as the numbered case list the adjudication reads.
+
+        Every line is derived: the ids, the bound ruling and ground, and the
+        holding `_render_holding` built from them. No sentence a panel wrote
+        freely appears here, which is what makes this text identical on every
+        validator.
 
         Rulings made under a superseded charter version are labelled as such,
         because a precedent decided against different constitutional text is
@@ -968,7 +1200,7 @@ class GovernanceMandateGuard(gl.Contract):
             lines.append(
                 f"{position}. {entry['precedent_id']} ruled {entry['ruling']}"
                 f" on {entry['mandate_class']}{suffix}\n"
-                f"   Principle: {entry['principle']}"
+                f"   Holding: {entry['holding']}"
             )
         return "\n".join(lines)
 
@@ -1339,12 +1571,26 @@ class GovernanceMandateGuard(gl.Contract):
         reasonable, because either would let one validator's reading stand
         unchecked.
 
-        Agreement requires the ruling, the mandate class and the drift flag to
-        match. The ruling is what the gate returns. The mandate class is the
-        ground of decision and becomes the precedent's index, so two
-        validators rejecting a proposal for unrelated reasons do not count as
-        agreeing. Drift is compared as a boolean rather than as a hash, which
-        stays stable when a page carries a trivial dynamic element.
+        Agreement requires three things to match exactly: the ruling, the
+        mandate class and the drift flag.
+
+        The ruling is what the gate returns. The mandate class is the ground of
+        decision and becomes the precedent's index, so two validators rejecting
+        a proposal for unrelated reasons do not count as agreeing. Drift is
+        compared as a boolean rather than as a hash, which stays stable when a
+        page carries a trivial dynamic element.
+
+        Those three are enough to bind the case law because the case law is
+        derived from them. `_render_holding` builds what later panels read out
+        of this tuple plus deterministic on-chain data, so a leader cannot put
+        a rule of its own into the registry: there is no field it authors that
+        a later panel ever reads. See the commentary above `_render_holding`
+        for the measurement that led here.
+
+        The prose that is not bound is the prose no later panel reads. The
+        ruling `principle`, `rationale`, `constitution_clause`,
+        `required_amendments` and `cited_precedents` are reported for human
+        review and never enter a corpus, so validators may word them freely.
         """
         dao_key_mem = str(charter.dao_id)
         dao_name_mem = str(charter.display_name)
@@ -1413,13 +1659,18 @@ Body:
 {appeal_block}
 HOW TO DECIDE
 1. Identify every constitutional provision the proposal touches. Quote the operative one.
-2. Apply the case law. A ruling marked LANDMARK is binding: if this proposal presents materially the same question, rule the same way. A ruling decided under a superseded charter version is persuasive only, so follow it unless the amended text now says otherwise.
+2. Apply the case law. Each prior entry gives you the proposal that was decided, the ruling it received and the ground it was decided on. An entry marked LANDMARK is binding: if this proposal presents materially the same question as that one, rule the same way. An entry decided under a superseded charter version is persuasive only, so follow it unless the amended text now says otherwise. Reason from the decided proposal to this one; the entries state outcomes, not rules, and it is for you to say whether the question is the same.
 3. Choose exactly one ruling:
    COMPLIANT - neither the constitution nor the case law prohibits this proposal. It may proceed to a token vote.
    NON_COMPLIANT - the proposal conflicts with a provision or with binding precedent, and rewording could not cure it because the substance itself is not permitted.
    AMENDMENT_REQUIRED - the substance is permissible, but the proposal as written breaches a provision that a change of wording would satisfy. You must then state the specific amendments.
 4. Name the ground of decision, choosing exactly one value from this closed list: {classes_mem}. Use "none" only when the ruling is COMPLIANT.
-5. State the ruling principle in one sentence, phrased so a future panel can apply it without reading this proposal. This sentence is recorded permanently as this DAO's precedent, so write it as a rule, not as a description of this case.
+5. State the ruling principle in one sentence: the rule you understand your decision to turn on. This is recorded beside your ruling for the people who read this DAO's registry. It is an explanatory note, not case law, and no later panel is shown it, so state it plainly and do not labour over the wording.
+
+WHAT BINDS, so you know what to spend your care on
+Your ruling and your ground of decision are compared against every other validator's, character for character, and the proposal is only decided if they match. Those two answers, and the drift flag, are the entire decision. The DAO's case law is generated from them by the contract itself, which is why your principle sentence does not need to match anyone else's and is not checked against anyone else's. Spend your care on getting the ruling and the ground right.
+- Write the principle as one declarative sentence about the rule, not about this proposal.
+- Do not hedge and do not give alternatives. One rule.
 
 Rules of construction:
 - The constitution governs. Where the proposal and the constitution conflict, the constitution wins.
@@ -1449,13 +1700,19 @@ Respond with a JSON object with exactly these fields:
 
             ruling, mandate_class, _drift = _decision_fields(parsed)
 
-            principle = _as_text(
-                _first_present(parsed, "principle", "ruling_principle", "holding", "rule"),
-                MAX_PRINCIPLE_LEN,
+            # The principle is a consensus-bound field, so it is canonicalized
+            # here, on both sides, before it is ever compared or stored.
+            principle = _canonical_principle(
+                _first_present(parsed, "principle", "ruling_principle", "holding", "rule")
             )
             if not principle:
                 raise gl.vm.UserError(
                     f"{ERROR_LLM} Adjudication returned no ruling principle"
+                )
+            if len(principle) < MIN_PRINCIPLE_LEN or not _principle_key(principle):
+                raise gl.vm.UserError(
+                    f"{ERROR_LLM} Adjudication returned a ruling principle too short "
+                    f"to state a rule"
                 )
 
             required = _as_text(
@@ -1510,10 +1767,12 @@ Respond with a JSON object with exactly these fields:
             except Exception:
                 return False
             try:
-                mine = leader_fn()
-                own_decision = _decision_fields(mine)
+                own_decision = _decision_fields(leader_fn())
             except Exception:
                 return False
+            # The whole of the binding. Everything a later panel reads is
+            # derived from this tuple by `_render_holding`, so agreeing on it
+            # is agreeing on the case law.
             return leader_decision == own_decision
 
         verdict = _unwrap_nondet(gl.vm.run_nondet_unsafe(leader_fn, validator_fn))
@@ -1531,10 +1790,20 @@ Respond with a JSON object with exactly these fields:
             f"{ERROR_EXPECTED} Adjudication produced an invalid mandate class",
         )
 
-        principle = _as_text(verdict.get("principle"), MAX_PRINCIPLE_LEN)
+        # Re-derive the principle through the same canonicalization both sides
+        # ran, so what reaches the registry is the agreed rule in canonical
+        # form rather than whatever shape the reply happened to arrive in. The
+        # digest is recomputed here too, so the stored commitment is taken over
+        # the stored text and a reviewer can check one against the other.
+        principle = _canonical_principle(verdict.get("principle"))
         self._require(
             bool(principle),
             f"{ERROR_EXPECTED} Adjudication produced no ruling principle",
+        )
+        self._require(
+            len(principle) >= MIN_PRINCIPLE_LEN and bool(_principle_key(principle)),
+            f"{ERROR_EXPECTED} Adjudication produced a ruling principle too short "
+            f"to state a rule",
         )
 
         citations = verdict.get("cited_precedents")
@@ -1545,10 +1814,20 @@ Respond with a JSON object with exactly these fields:
 
         live_fingerprint = _as_text(verdict.get("live_fingerprint"), 64)
 
+        # The case law, derived here from the three bound fields plus the
+        # proposal's own title and the charter version. This runs outside the
+        # nondeterministic block, on inputs every node holds identically, so it
+        # is the same string everywhere. It is the only text a later panel
+        # reads, which is what keeps leader prose out of the registry's
+        # operative content.
+        holding = _render_holding(ruling, mandate_class, bool(drift), title, charter.version)
+
         return {
             "ruling": ruling,
             "mandate_class": mandate_class,
             "constitution_drift": bool(drift),
+            "holding": holding,
+            "holding_digest": _principle_digest(holding),
             "principle": principle,
             "rationale": _as_text(verdict.get("rationale"), MAX_RATIONALE_LEN),
             "required_amendments": (
@@ -1586,6 +1865,10 @@ Respond with a JSON object with exactly these fields:
         that a proposal was permissible constrains later readings exactly as a
         rejection does, and a registry that only kept rejections would teach
         future panels that nothing has ever been allowed.
+
+        `principle` here is the derived holding, not the sentence the panel
+        wrote. The panel's sentence stays on the `Ruling` record, which is the
+        only place it is kept, because this record is what later panels read.
         """
         dao_key = str(charter.dao_id)
         index = int(charter.precedent_total)
@@ -1597,7 +1880,7 @@ Respond with a JSON object with exactly these fields:
             proposal_id=proposal_id,
             ruling=str(verdict["ruling"]),
             mandate_class=str(verdict["mandate_class"]),
-            principle=str(verdict["principle"]),
+            principle=str(verdict["holding"]),
             charter_version=u32(int(charter.version)),
             created_at=u64(now_ts),
             landmark=False,
@@ -1605,6 +1888,7 @@ Respond with a JSON object with exactly these fields:
             overruled_reason="",
             overruled_at=u64(0),
             superseded_by="",
+            principle_digest=str(verdict["holding_digest"]),
         )
         self.precedents[precedent_id] = record
         self.dao_precedent_at[f"{dao_key}|{index}"] = precedent_id
@@ -1740,6 +2024,7 @@ Respond with a JSON object with exactly these fields:
             adjudicated_at=u64(now_ts),
             revision=u32(1),
             precedent_id=precedent_id,
+            principle_digest=str(verdict["holding_digest"]),
         )
         self.rulings[proposal_id] = ruling
 
@@ -1758,6 +2043,8 @@ Respond with a JSON object with exactly these fields:
                 "is_compliant": str(verdict["ruling"]) == RULING_COMPLIANT,
                 "mandate_class": str(verdict["mandate_class"]),
                 "principle": str(verdict["principle"]),
+                "holding": str(verdict["holding"]),
+                "holding_digest": str(verdict["holding_digest"]),
                 "rationale": str(verdict["rationale"]),
                 "required_amendments": str(verdict["required_amendments"]),
                 "constitution_clause": str(verdict["constitution_clause"]),
@@ -1886,6 +2173,7 @@ Respond with a JSON object with exactly these fields:
             adjudicated_at=u64(now_ts),
             revision=u32(new_revision),
             precedent_id=precedent_id,
+            principle_digest=str(verdict["holding_digest"]),
         )
         self.rulings[pid] = ruling
 
@@ -1915,6 +2203,8 @@ Respond with a JSON object with exactly these fields:
                 "ruling_changed": str(verdict["ruling"]) != previous_ruling,
                 "mandate_class": str(verdict["mandate_class"]),
                 "principle": str(verdict["principle"]),
+                "holding": str(verdict["holding"]),
+                "holding_digest": str(verdict["holding_digest"]),
                 "rationale": str(verdict["rationale"]),
                 "required_amendments": str(verdict["required_amendments"]),
                 "constitution_clause": str(verdict["constitution_clause"]),
@@ -2107,6 +2397,7 @@ Respond with a JSON object with exactly these fields:
                 "is_compliant": str(record.ruling) == RULING_COMPLIANT,
                 "mandate_class": str(record.mandate_class),
                 "principle": str(record.principle),
+                "holding_digest": str(record.principle_digest),
                 "required_amendments": str(record.required_amendments),
                 "constitution_drift": bool(record.constitution_drift),
                 "charter_version": int(record.charter_version),
@@ -2352,6 +2643,7 @@ Respond with a JSON object with exactly these fields:
                 "is_compliant": str(record.ruling) == RULING_COMPLIANT,
                 "mandate_class": str(record.mandate_class),
                 "principle": str(record.principle),
+                "holding_digest": str(record.principle_digest),
                 "rationale": str(record.rationale),
                 "required_amendments": str(record.required_amendments),
                 "constitution_clause": str(record.constitution_clause),
@@ -2403,7 +2695,8 @@ Respond with a JSON object with exactly these fields:
                 "proposal_id": str(record.proposal_id),
                 "ruling": str(record.ruling),
                 "mandate_class": str(record.mandate_class),
-                "principle": str(record.principle),
+                "holding": str(record.principle),
+                "holding_digest": str(record.principle_digest),
                 "charter_version": int(record.charter_version),
                 "created_at": int(record.created_at),
                 "landmark": bool(record.landmark),
@@ -2460,7 +2753,8 @@ Respond with a JSON object with exactly these fields:
                     "proposal_id": str(record.proposal_id),
                     "ruling": str(record.ruling),
                     "mandate_class": str(record.mandate_class),
-                    "principle": str(record.principle),
+                    "holding": str(record.principle),
+                    "holding_digest": str(record.principle_digest),
                     "charter_version": int(record.charter_version),
                     "created_at": int(record.created_at),
                     "landmark": bool(record.landmark),
@@ -2528,8 +2822,26 @@ Respond with a JSON object with exactly these fields:
                 "max_body_len": MAX_BODY_LEN,
                 "min_body_len": MIN_BODY_LEN,
                 "max_title_len": MAX_TITLE_LEN,
+                "max_principle_len": MAX_PRINCIPLE_LEN,
+                "min_principle_len": MIN_PRINCIPLE_LEN,
                 "max_revisions": MAX_REVISIONS,
                 "max_cooldown_secs": MAX_COOLDOWN_SECS,
+                # The fields every validator independently binds before a
+                # ruling is recorded, and the fields a panel reports without
+                # binding. A front end can show integrators what the panel
+                # actually agreed on rather than implying it agreed on
+                # everything it reported.
+                "consensus_bound_fields": [
+                    "ruling", "mandate_class", "constitution_drift",
+                ],
+                # Derived by the contract from the bound fields above plus
+                # deterministic on-chain data. This is the only text a later
+                # adjudication reads out of the precedent registry.
+                "derived_precedent_fields": ["holding", "holding_digest"],
+                "reported_unbound_fields": [
+                    "principle", "rationale", "constitution_clause",
+                    "required_amendments", "cited_precedents",
+                ],
             },
             sort_keys=True,
         )

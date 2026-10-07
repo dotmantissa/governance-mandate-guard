@@ -5,31 +5,31 @@
       "constructorArgs": [
         "Governance Mandate Guard Registry"
       ],
-      "contractAddress": "0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e",
-      "deploymentTransaction": "0x62c033bc6981c0864710d2e0e1830f8ec6ebf1547009a546897e90ea490bbcd9",
-      "explorer": "https://explorer-studio.genlayer.com/address/0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e",
+      "contractAddress": "0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6",
+      "deploymentTransaction": "0xfae9bdf9672eeeada424910dabc6c7f04831404389db338382d669fd2de3e720",
+      "explorer": "https://explorer-studio.genlayer.com/address/0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6",
       "methods": 31,
       "role": "the primitive",
       "source": "contracts/governance_mandate_guard.py",
-      "sourceBytes": 104714,
-      "sourceSha256": "61239eb4fd1c76848f7158ab4d546328236dc6b2ea09949cbb8ccee493251393",
+      "sourceBytes": 122043,
+      "sourceSha256": "ac7a01a3c0a4038c30418926832a4d33dcbb44098efbc7028eef594a96c5f845",
       "viewMethods": 22,
       "writeMethods": 9
     },
     "MandateGatedDAO": {
       "constructorArgs": [
-        "0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e",
-        "meridian-dao",
+        "0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6",
+        "meridian-dao-r2b",
         3600,
         1
       ],
-      "contractAddress": "0x91e24D4CD36876219cD19Fa5aeC12bca322a680A",
-      "explorer": "https://explorer-studio.genlayer.com/address/0x91e24D4CD36876219cD19Fa5aeC12bca322a680A",
+      "contractAddress": "0xEcD0f96114fDeff3Fb59200473579099DfD00b9E",
+      "explorer": "https://explorer-studio.genlayer.com/address/0xEcD0f96114fDeff3Fb59200473579099DfD00b9E",
       "methods": 11,
       "role": "reference consumer, deployed by the live suite to prove the gate",
       "source": "contracts/mandate_gated_dao.py",
-      "sourceBytes": 16476,
-      "sourceSha256": "f971a5db89dcf6e03b0993857cdea9b79fdef84c546079b1475b5ae9b43eaf20",
+      "sourceBytes": 17094,
+      "sourceSha256": "e344deab8bb65ca8c1e240ba56a41f91496938b955d8e9f44a02225726dd0de0",
       "viewMethods": 7,
       "writeMethods": 4
     }
@@ -38,7 +38,7 @@
   "deployerAddress": "0xBC1399c55538eC034d4Da550C03c34Ae0C357f53",
   "network": "studionet",
   "primitive": "Governance Mandate Guard",
-  "recordedAt": "2026-09-30T11:14:00Z",
+  "recordedAt": "2026-10-07T03:01:56Z",
   "rpc": "https://studio.genlayer.com/api",
   "runner": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6",
   "schemaMethods": [

@@ -23,9 +23,9 @@ The DAO's voting contract calls `is_compliant(proposal_id)` before it opens a
 ballot. Only proposals that cleared the gate can be voted on.
 
 The part that compounds is the precedent registry. Every adjudicated proposal,
-accepted or rejected, is written into the DAO's registry with a one-line statement
-of the principle the ruling turned on, and later compliance checks are handed that
-growing body of rulings as binding context. The registry is per DAO, so a ruling
+accepted or rejected, is written into the DAO's registry with a one-line holding
+that the contract derives from what the validators actually agreed, and later
+compliance checks are handed that growing body of rulings as binding context. The registry is per DAO, so a ruling
 made in month two constrains the reading of a similar proposal in month twenty.
 That is institutional memory a token vote cannot produce on its own.
 
@@ -39,12 +39,12 @@ gets its own isolated precedent registry, stewards, allowlist and counters.
 | Network | GenLayer StudioNet |
 | Chain ID | 61999 |
 | RPC endpoint | `https://studio.genlayer.com/api` |
-| Contract address | `0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e` |
-| Explorer | https://explorer-studio.genlayer.com/address/0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e |
-| Deployment transaction | `0x62c033bc6981c0864710d2e0e1830f8ec6ebf1547009a546897e90ea490bbcd9` |
+| Contract address | `0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6` |
+| Explorer | https://explorer-studio.genlayer.com/address/0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6 |
+| Deployment transaction | `0xfae9bdf9672eeeada424910dabc6c7f04831404389db338382d669fd2de3e720` |
 | Deployer | `0xBC1399c55538eC034d4Da550C03c34Ae0C357f53` |
 | GenVM runner | `py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6` |
-| Source SHA-256 | `61239eb4fd1c76848f7158ab4d546328236dc6b2ea09949cbb8ccee493251393` |
+| Source SHA-256 | `ac7a01a3c0a4038c30418926832a4d33dcbb44098efbc7028eef594a96c5f845` |
 
 The deployed bytes are byte-for-byte identical to `contracts/governance_mandate_guard.py`
 in this repository. That is not a claim, it is a test:
@@ -56,7 +56,7 @@ every run. A reviewer can confirm it themselves in one command:
 curl -sS https://studio.genlayer.com/api \
   -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"gen_getContractCode",
-       "params":["0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e"]}' \
+       "params":["0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6"]}' \
   | python3 -c 'import base64,json,sys; sys.stdout.buffer.write(base64.b64decode(json.load(sys.stdin)["result"]))' \
   | diff - contracts/governance_mandate_guard.py && echo identical
 ```
@@ -66,7 +66,7 @@ CLI command prints the same source, but it adds a `Result:` header and a trailin
 blank line, so it is convenient for reading and awkward for byte comparison.
 
 The reference consumer used by the live suite is deployed at
-[`0x91e24D4CD36876219cD19Fa5aeC12bca322a680A`](https://explorer-studio.genlayer.com/address/0x91e24D4CD36876219cD19Fa5aeC12bca322a680A).
+[`0xEcD0f96114fDeff3Fb59200473579099DfD00b9E`](https://explorer-studio.genlayer.com/address/0xEcD0f96114fDeff3Fb59200473579099DfD00b9E).
 Full deployment metadata is in `artifacts/deployment.json`; the recorded live run
 with all 12 transactions, their consensus results and vote breakdowns is in
 `artifacts/live-verification.json`.
@@ -140,9 +140,102 @@ Agreement requires all three of:
 | `mandate_class` | one of eight | This is the ground of the decision and the precedent's index, so two validators rejecting a proposal for unrelated reasons are not treated as agreeing. |
 | `constitution_drift` | boolean | A ruling made against a document that no longer matches the pin was made against different text. |
 
-Everything else the model returns is prose. It is stored and reported for human
-review, and it is never gated, so two validators that reason in completely
-different words still reach consensus as long as the decision matches.
+All three are closed vocabularies compared exactly, character for character.
+Nothing is NLP-judged, and no second model call sits inside the validator.
+
+The prose that is not bound is the prose no later panel reads. `principle`,
+`rationale`, `constitution_clause`, `required_amendments` and `cited_precedents`
+are stored and reported for human review, never enter a precedent corpus and
+never gate anything, so two validators that reason in completely different words
+still reach consensus as long as the decision and its ground match.
+`get_registry_info` publishes all three lists under `consensus_bound_fields`,
+`derived_precedent_fields` and `reported_unbound_fields`, so an integrator never
+has to guess which is which.
+
+### Why the case law is derived and not authored
+
+The registry is the compounding asset of this primitive, so the one thing that
+must hold is that the case law a later panel reads was checked by every
+validator that accepted it. If a single node can write the rule that binds
+future readings, the gate has a single point of capture in the one place it
+cannot afford one.
+
+An earlier build of this contract stored the panel's own `principle` sentence as
+that case law and tried to bind it across validators. That approach was measured
+on StudioNet rather than argued about, and it failed. The measurement is worth
+stating, because it is the reason the design looks the way it does.
+
+The exact adjudication prompt was run five times against the live model, with
+the real pinned constitution and one compliant proposal. All five panels agreed
+on the ruling and the ground. The rules they wrote were these:
+
+1. a ceiling of 50,000 USDC per individual grant
+2. 50,000 USDC or less needs no further constitutional authorisation
+3. a ceiling of 50,000 USDC, plus a seven day review period
+4. a ceiling of 50,000 USDC in a calendar quarter
+5. grants are permissible if they comply with spending limits, naming no figure
+
+These are not rewordings of one rule. Rule 1 is per grant and rule 4 is per
+quarter: five grants of 40,000 USDC in one quarter are each permitted by rule 1
+and refused in total by rule 4. Rule 5 admits what rule 1 refuses. Rule 2
+affirmatively dispenses with an authorisation that rule 3 requires. Generalizing
+a rule from a single case is underdetermined, which is the holding and dicta
+problem courts have always had, so five honest models produce five different
+rules. The premise that honest panels converge on one sentence is simply false.
+
+Every route to binding that sentence fails on that evidence:
+
+| Route | Outcome |
+| --- | --- |
+| Exact string equality | Deadlocks. Honest models never produce identical prose, so every adjudication fails. |
+| Deterministic gates on figures, polarity and subject matter | Necessary but never sufficient. Replayed over all ten pairs above, the gates rejected nothing: the figures agree, the polarity agrees, the subject matter agrees. The rules still differ. |
+| Comparative semantic equivalence | Correct, and fatal to liveness. Asked whether two of these rules decide the same future case the same way, the comparator answered no, because they do not. Deployed, it returned `MAJORITY_DISAGREE` at 1 agreement of 5 on every adjudication, while charter pinning and amendment ratification, which do not touch the principle, reached `MAJORITY_AGREE`. Validator receipts showed `SUCCESS` with no error: the validators had genuinely computed disagreement. |
+| Each validator checks the leader's sentence against the constitution it fetched | Live, and unsound. Rules 1 and 4 are each individually defensible against the text, so both pass, and they produce different future outcomes. That is the original defect restored. |
+
+So no sentence a panel wrote becomes binding case law. The contract derives the
+holding instead, with `_render_holding`, from the three consensus-bound fields
+plus data already on chain:
+
+```
+Under charter v1, a proposal titled "Fund the documentation working group" was
+ruled NON_COMPLIANT, on the ground of treasury_mandate.
+```
+
+A compliant ruling implicates no provision and so names no ground. A ruling made
+against a drifted document says so, because drift is bound too:
+
+```
+Under charter v2, a proposal titled "Fund the documentation working group" was
+ruled AMENDMENT_REQUIRED, on the ground of procedural_mandate. The live
+constitution had drifted from the ratified text when this was decided.
+```
+
+Every input is either consensus-bound, meaning `ruling`, `mandate_class` and
+`constitution_drift`, which every validator compared exactly before voting, or
+already on chain, meaning the proposer's own title and the charter version. The
+rendering runs outside the nondeterministic block on inputs every node holds
+identically, so any two validators produce the same bytes. Nothing unchecked can
+reach it, because nothing unchecked is passed to it.
+
+What a later panel receives is therefore the facts of the decided proposal and
+the outcome reached on them, and the prompt directs it to reason from those by
+analogy. That is what citing a precedent is. The generalized rule is left to the
+panel reading the case, which is where the law of a case actually gets made.
+
+The panel's own sentence is not discarded. It stays on the `Ruling` record and is
+reported through `compliance_status` for human review, in the same unbound group
+as `rationale`, `constitution_clause`, `required_amendments` and
+`cited_precedents`. It is useful to a steward reading why a proposal failed, and
+it is provably not load-bearing:
+`test_the_holding_and_not_the_prose_is_what_future_panels_read` asserts the
+sentence is absent from the next panel's prompt and the derived holding is
+present.
+
+`holding_digest` is the Keccak-256 of the holding's canonical key, stored on both
+the precedent and the ruling. Anyone can recompute it from the registry text, it
+ties a ruling to the case law it generated, and it is mixed into the corpus
+digest, so the body of precedent a past ruling was decided under is verifiable
+rather than asserted.
 
 The mandate class is drawn from a fixed taxonomy and normalized on both sides
 through the same deterministic mapping, so a difference in phrasing never
@@ -198,6 +291,26 @@ A test enforces this rather than trusting it. The SDK warns when a storage manag
 is pickled, because storage reads inside a nondeterministic block are not
 supported; `test_nondeterministic_closures_never_capture_storage` turns that
 warning into an error for the duration of a submission.
+
+Nothing a panel reads is leader-authored and unchecked. A corpus entry is the
+complete set of fields a later adjudication consumes, and every one of them is
+either deterministic or consensus-bound:
+
+| Corpus field | Status |
+| --- | --- |
+| `precedent_id`, `proposal_id` | deterministic, the DAO id plus a counter |
+| `ruling`, `mandate_class` | consensus-bound, exact |
+| `holding` | derived by the contract from the bound ruling, ground and drift flag plus the proposal's own title and the charter version |
+| `holding_digest` | deterministic from the derived holding |
+| `charter_version` | deterministic, read from the charter |
+| `landmark` | deterministic, set only by a steward call |
+| `decided_at` | deterministic, the pinned transaction clock |
+
+`test_every_corpus_field_is_bound_or_deterministic` holds that table to its
+promise field by field, so a field added to the corpus later cannot quietly
+reintroduce an unbound input to future rulings: the suite fails until the new
+field is classified. The case law that constrains a ruling in month twenty was
+agreed by the panels that sat in month two.
 
 Precedent selection is deterministic and bounded:
 
@@ -302,7 +415,7 @@ The integration surface:
 | --- | --- |
 | `is_compliant(proposal_id)` | `bool`. The gate. False for an unknown proposal rather than an error. |
 | `require_compliant(proposal_id)` | `bool`, or reverts with the reason. |
-| `compliance_status(proposal_id)` | JSON: ruling, class, principle, required amendments, drift, revision, submitter. |
+| `compliance_status(proposal_id)` | JSON: ruling, class, holding digest, the panel's unbound principle, required amendments, drift, revision, submitter. |
 | `find_adjudication(dao_id, title, body)` | JSON. Look up a ruling by proposal text rather than by id. |
 
 Charters: `get_charter`, `charter_exists`, `get_charter_count`, `get_charter_id_at`,
@@ -323,7 +436,7 @@ See [`INTEGRATION.md`](INTEGRATION.md) for the full guide. The short version is 
 call:
 
 ```python
-guard = gl.get_contract_at(Address("0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e"))
+guard = gl.get_contract_at(Address("0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6"))
 if not guard.view().is_compliant(proposal_id):
     raise gl.vm.UserError("proposal did not clear constitutional review")
 ```
@@ -394,7 +507,7 @@ them.
 
 ```bash
 GENLAYER_PRIVATE_KEY=0x... \
-GUARD_ADDRESS=0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e \
+GUARD_ADDRESS=0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6 \
 LIVE_DAO_ID=my-dao-$(date +%s) \
   .venv/bin/python -m pytest tests/test_live_studionet.py -v -s
 ```
@@ -428,15 +541,25 @@ which can only happen if validators genuinely read the live document rather than
 reusing a cached conclusion. From the recorded run:
 
 ```
-meridian-dao#p1  submitted   NON_COMPLIANT (treasury_mandate)
-  A single grant or treasury allocation may not exceed the 50,000 USDC cap,
-  regardless of the purpose or the total size of the treasury reserves.
+meridian-dao-r2b#p1  submitted   NON_COMPLIANT (treasury_mandate)
+  A single grant may not exceed 50,000 USDC.
 
-meridian-dao#p1  on appeal   COMPLIANT
-  A treasury grant that complies with the current single-grant ceiling, names its
-  authorising council resolution, and funds work sustaining the lending market
-  satisfies constitutional requirements.
+meridian-dao-r2b#p1  on appeal   COMPLIANT
+  Treasury allocations are permissible if they are for market sustainability, fall below the single grant ceiling, and comply with procedural disclosure and authorization requirements.
 ```
+
+All 12 transactions in that run reached `MAJORITY_AGREE`. That is worth stating
+explicitly, because an earlier iteration of this contract did not: when the panel
+was asked to agree on the ruling principle itself, every `submit_proposal`
+returned `MAJORITY_DISAGREE` at 1 agree of 5, while the calls that did not touch
+the principle agreed normally. The stored case law is now derived from the
+consensus-bound fields instead, and the liveness cost is gone. The measurements
+are in the repository history, and the design rationale is in the section above.
+
+The prose a panel writes is still recorded on each ruling and reported by
+`get_ruling`, so a reviewer can read the reasoning. It is reported, not bound:
+`principle` never reaches a later panel, and the live suite asserts that the
+corpus entries carry `holding` and not `principle`.
 
 ### Linting
 

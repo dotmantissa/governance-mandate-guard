@@ -17,18 +17,11 @@ from conftest import (
     CONSTITUTION,
     NON_COMPLIANT_REPLY,
     PROPOSAL_BODY,
+    body_variant,
     revert_message,
     ruling_payload,
     submit,
 )
-
-
-def body_variant(index: int) -> str:
-    """A distinct proposal body, since identical text is refused as a replay."""
-    return (
-        f"Allocate {10_000 + index * 137} USDC from the Treasury to working group {index} "
-        f"for the coming quarter. Authorised by Council resolution 2027-{index:02d}."
-    )
 
 
 def fill(host, guard, accounts, count: int, reply: str = COMPLIANT_REPLY) -> list[dict]:
@@ -69,17 +62,27 @@ def test_every_ruling_becomes_a_precedent(
     assert precedent["ruling"] == expected_ruling
     assert precedent["mandate_class"] == expected_class
     assert precedent["proposal_id"] == verdict["proposal_id"]
-    assert precedent["principle"] == verdict["principle"]
+    # The registry stores the derived holding. The panel's own sentence is
+    # reported on the ruling and deliberately does not reach a precedent.
+    assert precedent["holding"] == verdict["holding"]
+    assert precedent["holding"] != verdict["principle"]
     assert precedent["charter_version"] == 1
     assert precedent["landmark"] is False
     assert precedent["overruled"] is False
 
 
-def test_the_principle_is_the_line_future_panels_read(host, registered, accounts):
+def test_the_holding_and_not_the_prose_is_what_future_panels_read(host, registered, accounts):
     """
-    The one-line principle recorded by a ruling appears verbatim in the case law
-    handed to the next adjudication. That is the whole mechanism by which the
-    registry accumulates meaning rather than volume.
+    The derived holding is the line handed to the next adjudication, and the
+    sentence the first panel wrote is not.
+
+    This is the reviewer's defect stated as a test. A leader authors the
+    `principle` sentence alone: validators bind the ruling, the ground and the
+    drift flag, never that prose. So if the prose reached a later panel it would
+    be binding case law that no validator ever checked. It must not appear, and
+    the holding the contract derives from the bound fields must appear in its
+    place. That is the mechanism by which the registry accumulates meaning
+    without letting one node legislate.
     """
     principle = "A grant that names no Council resolution is procedurally defective."
     host.mock_llm(
@@ -88,11 +91,14 @@ def test_the_principle_is_the_line_future_panels_read(host, registered, accounts
     )
     first = submit(registered, accounts)
 
+    host.clear_routes()
+    host.mock_web(r"acme\.example/constitution$", {"status": 200, "body": CONSTITUTION})
     host.mock_llm(r"constitutional review panel", COMPLIANT_REPLY)
     submit(registered, accounts, title="Second", body=body_variant(99))
 
     prompt = host.llm_calls[-1]["prompt"]
-    assert principle in prompt
+    assert principle not in prompt
+    assert first["holding"] in prompt
     assert first["precedent_id"] in prompt
     assert "NON_COMPLIANT" in prompt
 

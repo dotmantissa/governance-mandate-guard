@@ -1,8 +1,8 @@
 {
   "adjudication": {
-    "appealed": "A treasury grant that complies with the current single-grant ceiling, names its authorising council resolution, and funds work sustaining the lending market satisfies constitutional requirements.",
-    "compliant": "A treasury grant that names its authorising council resolution, stays within the 50,000 USDC single-grant cap, and funds work directly sustaining the lending market satisfies Articles II and V and may proceed to a token vote.",
-    "rejected": "A single grant or treasury allocation may not exceed the 50,000 USDC cap, regardless of the purpose or the total size of the treasury reserves."
+    "appealed": "Treasury allocations are permissible if they are for market sustainability, fall below the single grant ceiling, and comply with procedural disclosure and authorization requirements.",
+    "compliant": "A treasury spending proposal is compliant when it states the amount, recipient, and authorising council resolution and does not exceed any express treasury limit.",
+    "rejected": "A single grant may not exceed 50,000 USDC."
   },
   "chainId": 61999,
   "constitution": {
@@ -11,16 +11,16 @@
     "version1": "https://gist.githubusercontent.com/dotmantissa/473984450835cbb0e139fa39cc67f640/raw/015a8e292e0f52c0c44600284fa5c70c150a36cf/meridian-constitution-v1.txt",
     "version2": "https://gist.githubusercontent.com/dotmantissa/473984450835cbb0e139fa39cc67f640/raw/015a8e292e0f52c0c44600284fa5c70c150a36cf/meridian-constitution-v2.txt"
   },
-  "consumerAddress": "0x91e24D4CD36876219cD19Fa5aeC12bca322a680A",
-  "contractAddress": "0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e",
+  "consumerAddress": "0xEcD0f96114fDeff3Fb59200473579099DfD00b9E",
+  "contractAddress": "0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6",
   "deployedSourceMatchesRepository": true,
   "finalCharter": {
     "active": true,
-    "amended_at": 1790766722,
+    "amended_at": 1791341532,
     "amendment_required_total": 0,
     "compliant_total": 2,
     "constitution_url": "https://gist.githubusercontent.com/dotmantissa/473984450835cbb0e139fa39cc67f640/raw/015a8e292e0f52c0c44600284fa5c70c150a36cf/meridian-constitution-v2.txt",
-    "dao_id": "meridian-dao",
+    "dao_id": "meridian-dao-r2b",
     "display_name": "Meridian Protocol",
     "doc_chars": 1752,
     "doc_fingerprint": "725ef0a219582e42e6d1c69ecb722751c92f654f6caf4dfa1e6cc66ac9b02865",
@@ -29,7 +29,7 @@
     "non_compliant_total": 0,
     "precedent_total": 3,
     "proposal_total": 2,
-    "ratified_at": 1790766564,
+    "ratified_at": 1791341381,
     "registered_by": "0xbc1399c55538ec034d4da550c03c34ae0c357f53",
     "restrict_proposers": false,
     "steward": "0xbc1399c55538ec034d4da550c03c34ae0c357f53",
@@ -38,23 +38,24 @@
     "version": 2
   },
   "finalCorpus": {
-    "digest": "9a2aa4f1a892dd1ffead3f922351a1d41919acc9f38c83daf3bfe5aa8cc6fd73",
+    "digest": "54d45878dd3db0d4ff987fa1647063abf6bad204b8750795733e17974cdce310",
     "precedents": [
       {
         "charter_version": 2,
-        "decided_at": 1790766734,
+        "decided_at": 1791341543,
+        "holding": "Under charter v2, a proposal titled \"Fund the security audit programme for the year\" was ruled COMPLIANT.",
+        "holding_digest": "928c805487674d86f159c50c54b8ee51feace86affe4865b5805c230b9f2017d",
         "landmark": false,
         "mandate_class": "none",
-        "precedent_id": "meridian-dao#r2",
-        "principle": "A treasury grant that complies with the current single-grant ceiling, names its authorising council resolution, and funds work sustaining the lending market satisfies constitutional requirements.",
-        "proposal_id": "meridian-dao#p1",
+        "precedent_id": "meridian-dao-r2b#r2",
+        "proposal_id": "meridian-dao-r2b#p1",
         "ruling": "COMPLIANT"
       }
     ],
     "size": 1
   },
   "network": "studionet",
-  "recordedAt": "2026-09-30T11:13:16Z",
+  "recordedAt": "2026-10-07T02:53:24Z",
   "rpc": "https://studio.genlayer.com/api",
   "schemaMethods": [
     "active_precedent_corpus",
@@ -89,7 +90,7 @@
     "submit_proposal",
     "transfer_stewardship"
   ],
-  "sourceSha256": "61239eb4fd1c76848f7158ab4d546328236dc6b2ea09949cbb8ccee493251393",
+  "sourceSha256": "ac7a01a3c0a4038c30418926832a4d33dcbb44098efbc7028eef594a96c5f845",
   "transactions": [
     {
       "agreeCount": 3,
@@ -100,13 +101,13 @@
       "outcome": "success",
       "rotations": null,
       "status": "ACCEPTED",
-      "transactionHash": "0xf81478884a85336ee8ad86fc5a7a391e8b2a01135723c1bb67a77d9899f02d06",
+      "transactionHash": "0xd2d0cf2b27dbc23dcbb85db4546341ab83d8d5b0258feb93d9e8a05b9ecec1bb",
       "votes": {
         "0x03D58A4DeF6fDFc032A56374785a5F571D07Bc11": "idle",
-        "0x4aba638Cf0Cf5249437AaD968fC69dde46ae6BAC": "idle",
-        "0x5310dcF075E0BD47d29B8ec6581F736C767f54D2": "agree",
-        "0xDB1c35c1f05d885999b8f13e5735307BcC16Be88": "agree",
-        "0xec2Fb79cd12255Eb34886CEd7332f27B98DEe658": "agree"
+        "0x14402D49f317CE1a2F35BAE01b1804A2A9703dCb": "agree",
+        "0x5310dcF075E0BD47d29B8ec6581F736C767f54D2": "idle",
+        "0x76c25AFC12c75485703cCFfd0083AA6201455B25": "agree",
+        "0x772ffCd1dF6Cc566eC4b8d3f4F4f8eBbb6B36C84": "agree"
       }
     },
     {
@@ -118,13 +119,13 @@
       "outcome": "success",
       "rotations": null,
       "status": "ACCEPTED",
-      "transactionHash": "0x42b9075f778253780d86a6ef1ad7acf5b16242e75b045ecccae5d1c422b59e2b",
+      "transactionHash": "0xc22a262cd3e5e2ea8c7a176765f38d86077ba936eb6a2ec40cc0a69dcd11617c",
       "votes": {
-        "0x36728d2a123aB444E603EE5b2ad17d18Bb193557": "agree",
-        "0x5310dcF075E0BD47d29B8ec6581F736C767f54D2": "idle",
-        "0x6737ca1d6BDF8b7C4f19143E2D55581Ca64eb7C3": "agree",
-        "0x90402341F0B0e97b23023c0a87de957FB7148E0F": "idle",
-        "0xE6BD8050758CB15fC88387223E31Ae2708B119dC": "agree"
+        "0x14402D49f317CE1a2F35BAE01b1804A2A9703dCb": "agree",
+        "0x36728d2a123aB444E603EE5b2ad17d18Bb193557": "idle",
+        "0x4EDbE1FC9EAeC7b0EBA849b0C76AE73Eb0ad5C47": "agree",
+        "0x772ffCd1dF6Cc566eC4b8d3f4F4f8eBbb6B36C84": "idle",
+        "0xDB1c35c1f05d885999b8f13e5735307BcC16Be88": "agree"
       }
     },
     {
@@ -134,16 +135,16 @@
       "initialValidators": null,
       "operation": "submit_proposal",
       "outcome": "revert",
-      "revertReason": "[EXPECTED] An identical proposal was already adjudicated under charter version 1: meridian-dao#p0",
+      "revertReason": "[EXPECTED] An identical proposal was already adjudicated under charter version 1: meridian-dao-r2b#p0",
       "rotations": null,
       "status": "ACCEPTED",
-      "transactionHash": "0x3385e23a2030bda9b744e4f44ad968d37c5416d94207f25e5da6922dac5868a5",
+      "transactionHash": "0xa30a5325f177c7f0e3e38fecbcc57578fd9023b35664a57de351c1342d3e76d6",
       "votes": {
-        "0x3D83ab507785b95ca5C208bEc80CCe3D5ca98100": "idle",
-        "0x4aba638Cf0Cf5249437AaD968fC69dde46ae6BAC": "agree",
-        "0xE6BD8050758CB15fC88387223E31Ae2708B119dC": "agree",
-        "0xacc2459F341D7a887bcA8FAA62F1EC9378d4Bc67": "idle",
-        "0xcE1d6bBB36B744536153966B4DD42276f5ADd0F8": "agree"
+        "0x3D83ab507785b95ca5C208bEc80CCe3D5ca98100": "agree",
+        "0x772ffCd1dF6Cc566eC4b8d3f4F4f8eBbb6B36C84": "idle",
+        "0xDB1c35c1f05d885999b8f13e5735307BcC16Be88": "agree",
+        "0xacc2459F341D7a887bcA8FAA62F1EC9378d4Bc67": "agree",
+        "0xcE1d6bBB36B744536153966B4DD42276f5ADd0F8": "idle"
       }
     },
     {
@@ -155,17 +156,17 @@
       "outcome": "success",
       "rotations": null,
       "status": "ACCEPTED",
-      "transactionHash": "0x9c51139dfecaecac0cee585aadf7509555585616fa986f7f8d535ed0bbe98c02",
+      "transactionHash": "0x80fa3044bb10b4a77d5c08b2ddc06a39e0b2b53cb01c31f48819aa5f63628d57",
       "votes": {
-        "0x03D58A4DeF6fDFc032A56374785a5F571D07Bc11": "agree",
-        "0x4EDbE1FC9EAeC7b0EBA849b0C76AE73Eb0ad5C47": "idle",
-        "0x6737ca1d6BDF8b7C4f19143E2D55581Ca64eb7C3": "agree",
-        "0x90402341F0B0e97b23023c0a87de957FB7148E0F": "idle",
-        "0xec2Fb79cd12255Eb34886CEd7332f27B98DEe658": "agree"
+        "0x3E5ee2507cc167C9925Bf10c67D7986581112024": "agree",
+        "0x4404Fb70d490c935758146f42A73DC850FF95C71": "agree",
+        "0x90402341F0B0e97b23023c0a87de957FB7148E0F": "agree",
+        "0xE6BD8050758CB15fC88387223E31Ae2708B119dC": "idle",
+        "0xec2Fb79cd12255Eb34886CEd7332f27B98DEe658": "idle"
       }
     },
     {
-      "agreeCount": 3,
+      "agreeCount": 5,
       "consensusResult": "MAJORITY_AGREE",
       "expected": "success",
       "initialValidators": null,
@@ -173,21 +174,21 @@
       "outcome": "success",
       "rotations": null,
       "status": "ACCEPTED",
-      "transactionHash": "0x1cfeb7d0f88b1ddbc6ab33ec6da532d3dd34136d72f962f2ad53af33ea33a644",
+      "transactionHash": "0x6ffe1448fe99055a14b8f2b9319669ab2c227cc8b72c3e9403a3bf1bb544eb6b",
       "votes": {
-        "0x03D58A4DeF6fDFc032A56374785a5F571D07Bc11": "agree",
-        "0x76c25AFC12c75485703cCFfd0083AA6201455B25": "agree",
+        "0x14402D49f317CE1a2F35BAE01b1804A2A9703dCb": "agree",
+        "0x3E5ee2507cc167C9925Bf10c67D7986581112024": "agree",
         "0x90402341F0B0e97b23023c0a87de957FB7148E0F": "agree",
-        "0x9ea87b28DcA2F79fe108CF06a4c13B4c876AC23d": "idle",
-        "0xE6BD8050758CB15fC88387223E31Ae2708B119dC": "idle"
+        "0xBBb165E4c9d73a1493D363280f7067Cd07891dBE": "agree",
+        "0xacc2459F341D7a887bcA8FAA62F1EC9378d4Bc67": "agree"
       }
     },
     {
-      "contractAddress": "0x91e24D4CD36876219cD19Fa5aeC12bca322a680A",
+      "contractAddress": "0xEcD0f96114fDeff3Fb59200473579099DfD00b9E",
       "expected": "success",
       "operation": "deploy MandateGatedDAO",
       "outcome": "success",
-      "transactionHash": "0xcb79ea7678916addf8045ec07dc9d8e67d4a2256746a87c661b53c11d22fa0e4"
+      "transactionHash": "0xcbf3d53b0b9c013a715f0784425ec42761e83443ba38a3bcb7b17dd6f1612a3c"
     },
     {
       "agreeCount": 3,
@@ -198,13 +199,13 @@
       "outcome": "success",
       "rotations": null,
       "status": "ACCEPTED",
-      "transactionHash": "0xd393ce1d74b847c6b93da3fa042b2ecd04ee58392689458c45559f0b66afb571",
+      "transactionHash": "0x9e31eb6bfa6252553a27a7a5b62beae5e6c8c169e3856cebbdb116379cc6ce9c",
       "votes": {
-        "0x03D58A4DeF6fDFc032A56374785a5F571D07Bc11": "idle",
-        "0x36728d2a123aB444E603EE5b2ad17d18Bb193557": "agree",
-        "0x5310dcF075E0BD47d29B8ec6581F736C767f54D2": "idle",
-        "0xE6BD8050758CB15fC88387223E31Ae2708B119dC": "agree",
-        "0xacc2459F341D7a887bcA8FAA62F1EC9378d4Bc67": "agree"
+        "0x03D58A4DeF6fDFc032A56374785a5F571D07Bc11": "agree",
+        "0x14402D49f317CE1a2F35BAE01b1804A2A9703dCb": "agree",
+        "0x3E5ee2507cc167C9925Bf10c67D7986581112024": "agree",
+        "0x6737ca1d6BDF8b7C4f19143E2D55581Ca64eb7C3": "idle",
+        "0xDB1c35c1f05d885999b8f13e5735307BcC16Be88": "idle"
       }
     },
     {
@@ -214,16 +215,16 @@
       "initialValidators": null,
       "operation": "open_ballot",
       "outcome": "revert",
-      "revertReason": "[EXPECTED] Proposal meridian-dao#p1 has not cleared constitutional review",
+      "revertReason": "[EXPECTED] Proposal meridian-dao-r2b#p1 has not cleared constitutional review",
       "rotations": null,
       "status": "ACCEPTED",
-      "transactionHash": "0x32dcd1535893119d2301a6dba46f3f7625357d60348cfb530f6cf4d1ebffb6ed",
+      "transactionHash": "0x8ab4b32b12fdf1236c6ad417f87a4d04d8625808401eb43b3dcff528fd29fd9f",
       "votes": {
-        "0x14402D49f317CE1a2F35BAE01b1804A2A9703dCb": "agree",
-        "0x4404Fb70d490c935758146f42A73DC850FF95C71": "agree",
-        "0x76c25AFC12c75485703cCFfd0083AA6201455B25": "idle",
-        "0x90402341F0B0e97b23023c0a87de957FB7148E0F": "idle",
-        "0xacc2459F341D7a887bcA8FAA62F1EC9378d4Bc67": "agree"
+        "0x36728d2a123aB444E603EE5b2ad17d18Bb193557": "agree",
+        "0x4EDbE1FC9EAeC7b0EBA849b0C76AE73Eb0ad5C47": "idle",
+        "0x5310dcF075E0BD47d29B8ec6581F736C767f54D2": "agree",
+        "0x6737ca1d6BDF8b7C4f19143E2D55581Ca64eb7C3": "idle",
+        "0xDB1c35c1f05d885999b8f13e5735307BcC16Be88": "agree"
       }
     },
     {
@@ -235,13 +236,13 @@
       "outcome": "success",
       "rotations": null,
       "status": "ACCEPTED",
-      "transactionHash": "0x3da32126ebb8ea335887f6f7b9d44b682f797d1cef5c525741708d00f6750955",
+      "transactionHash": "0x4c042f138a1e63dbc5f3d5103d45be4ce5af4222eafc55ade778ad6450b92e25",
       "votes": {
-        "0x03D58A4DeF6fDFc032A56374785a5F571D07Bc11": "agree",
-        "0x14402D49f317CE1a2F35BAE01b1804A2A9703dCb": "agree",
-        "0x76c25AFC12c75485703cCFfd0083AA6201455B25": "idle",
-        "0x90402341F0B0e97b23023c0a87de957FB7148E0F": "agree",
-        "0xec2Fb79cd12255Eb34886CEd7332f27B98DEe658": "idle"
+        "0x3D83ab507785b95ca5C208bEc80CCe3D5ca98100": "idle",
+        "0x4aba638Cf0Cf5249437AaD968fC69dde46ae6BAC": "agree",
+        "0x9ea87b28DcA2F79fe108CF06a4c13B4c876AC23d": "agree",
+        "0xcE1d6bBB36B744536153966B4DD42276f5ADd0F8": "idle",
+        "0xec2Fb79cd12255Eb34886CEd7332f27B98DEe658": "agree"
       }
     },
     {
@@ -253,13 +254,13 @@
       "outcome": "success",
       "rotations": null,
       "status": "ACCEPTED",
-      "transactionHash": "0xf42c98ed779132c8b9fb0936fd0175f9ef4f288896e17c28ecde618f993cfd49",
+      "transactionHash": "0xb1e8332a481fa5ceb766265c1852ccf7e3d82d1252acfd4f04e9c9990e2fd404",
       "votes": {
-        "0x03D58A4DeF6fDFc032A56374785a5F571D07Bc11": "agree",
-        "0x3D83ab507785b95ca5C208bEc80CCe3D5ca98100": "idle",
-        "0x3E5ee2507cc167C9925Bf10c67D7986581112024": "agree",
-        "0x6737ca1d6BDF8b7C4f19143E2D55581Ca64eb7C3": "idle",
-        "0x772ffCd1dF6Cc566eC4b8d3f4F4f8eBbb6B36C84": "agree"
+        "0x14402D49f317CE1a2F35BAE01b1804A2A9703dCb": "agree",
+        "0x36728d2a123aB444E603EE5b2ad17d18Bb193557": "agree",
+        "0x4404Fb70d490c935758146f42A73DC850FF95C71": "idle",
+        "0x90402341F0B0e97b23023c0a87de957FB7148E0F": "agree",
+        "0xBBb165E4c9d73a1493D363280f7067Cd07891dBE": "idle"
       }
     },
     {
@@ -271,17 +272,17 @@
       "outcome": "success",
       "rotations": null,
       "status": "ACCEPTED",
-      "transactionHash": "0x99576c217f5ae761b5e1d82981c93c4b1eede4fe5d40501c880185f341454271",
+      "transactionHash": "0xefbc3bc3e0c3020964e8485ac9af003f9baee03dec46fb5cffc4f6c4b61aa36b",
       "votes": {
-        "0x5310dcF075E0BD47d29B8ec6581F736C767f54D2": "agree",
-        "0x9ea87b28DcA2F79fe108CF06a4c13B4c876AC23d": "agree",
-        "0xDB1c35c1f05d885999b8f13e5735307BcC16Be88": "agree",
-        "0xE6BD8050758CB15fC88387223E31Ae2708B119dC": "idle",
+        "0x14402D49f317CE1a2F35BAE01b1804A2A9703dCb": "agree",
+        "0x4404Fb70d490c935758146f42A73DC850FF95C71": "agree",
+        "0x4EDbE1FC9EAeC7b0EBA849b0C76AE73Eb0ad5C47": "idle",
+        "0x6737ca1d6BDF8b7C4f19143E2D55581Ca64eb7C3": "agree",
         "0xec2Fb79cd12255Eb34886CEd7332f27B98DEe658": "idle"
       }
     },
     {
-      "agreeCount": 3,
+      "agreeCount": 5,
       "consensusResult": "MAJORITY_AGREE",
       "expected": "success",
       "initialValidators": null,
@@ -289,13 +290,13 @@
       "outcome": "success",
       "rotations": null,
       "status": "ACCEPTED",
-      "transactionHash": "0x8abce37caa378837e211fb9c1790840e666a2448988bcafac4c1dda54f510233",
+      "transactionHash": "0x57f2126f0b74fd6d2b4c125004bc882ee312b1161a0d207112322375ad0f96c9",
       "votes": {
-        "0x03D58A4DeF6fDFc032A56374785a5F571D07Bc11": "agree",
-        "0x3D83ab507785b95ca5C208bEc80CCe3D5ca98100": "agree",
-        "0x4EDbE1FC9EAeC7b0EBA849b0C76AE73Eb0ad5C47": "agree",
-        "0x4aba638Cf0Cf5249437AaD968fC69dde46ae6BAC": "idle",
-        "0x76c25AFC12c75485703cCFfd0083AA6201455B25": "idle"
+        "0x36728d2a123aB444E603EE5b2ad17d18Bb193557": "agree",
+        "0x4404Fb70d490c935758146f42A73DC850FF95C71": "agree",
+        "0xDB1c35c1f05d885999b8f13e5735307BcC16Be88": "agree",
+        "0xcE1d6bBB36B744536153966B4DD42276f5ADd0F8": "agree",
+        "0xec2Fb79cd12255Eb34886CEd7332f27B98DEe658": "agree"
       }
     }
   ]

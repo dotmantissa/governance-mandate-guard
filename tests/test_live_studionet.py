@@ -36,6 +36,11 @@ import pytest
 from genlayer_py import create_account, create_client
 from genlayer_py.chains import studionet
 
+# The outside reviewer's independent implementation of the contract's
+# `_render_holding`, so this suite checks the deployed derivation rather than
+# agreeing with it.
+from conftest import holding_of
+
 ROOT = Path(__file__).resolve().parent.parent
 GUARD_SOURCE = ROOT / "contracts" / "governance_mandate_guard.py"
 DAO_SOURCE = ROOT / "contracts" / "mandate_gated_dao.py"
@@ -95,6 +100,24 @@ STATE: dict = {}
 def client():
     account = create_account(os.environ["GENLAYER_PRIVATE_KEY"])
     return create_client(chain=studionet, account=account)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def fresh_dao(client, guard_address):
+    """
+    The walk below is stateful and ordered, so it has to start from a DAO that has
+    never been registered on this contract.
+
+    Re-running it against a DAO that already exists would leave the shared STATE
+    half populated and fail eight unrelated tests, which reads as a broken
+    contract when it is really a reused fixture. Skip the module with the reason
+    instead, so a re-run costs a second rather than an afternoon.
+    """
+    if read(client, guard_address, "charter_exists", [DAO_ID]):
+        pytest.skip(
+            f"{DAO_ID} is already registered on {guard_address}. Set LIVE_DAO_ID to "
+            f"a fresh value for a clean walk, or deploy a fresh guard."
+        )
 
 
 @pytest.fixture(scope="session")
@@ -351,8 +374,34 @@ def test_the_precedent_registry_accumulated_both_rulings(client, guard_address):
     assert STATE["rejectedPrecedentId"] in ids
     assert ids[0] == STATE["rejectedPrecedentId"], "newest first"
     assert len(corpus["corpus_digest"]) == 64
+
+    titles = {
+        STATE["compliantProposalId"]: COMPLIANT_TITLE,
+        STATE["rejectedProposalId"]: OVERSIZED_TITLE,
+    }
     for entry in corpus["precedents"]:
-        assert entry["principle"], "every precedent carries a usable principle"
+        # The reviewer's defect, asserted against the live deployment: no leader
+        # prose reaches a later panel.
+        assert "principle" not in entry, (
+            f"{entry['precedent_id']}: a corpus entry carries unbound leader prose"
+        )
+        assert entry["holding"], "every precedent carries a usable holding"
+        assert len(entry["holding_digest"]) == 64
+
+        # Re-derive it here, from the bound fields plus on chain data, and require
+        # the deployed bytes to match. This is the whole claim of the design.
+        ruling = read_json(client, guard_address, "get_ruling", [entry["proposal_id"]])
+        expected = holding_of(
+            ruling["ruling"],
+            ruling["mandate_class"],
+            ruling["constitution_drift"],
+            titles[entry["proposal_id"]],
+            entry["charter_version"],
+        )
+        assert entry["holding"] == expected, (
+            f"{entry['precedent_id']}: deployed holding is not the derived holding\n"
+            f"  deployed: {entry['holding']}\n  derived:  {expected}"
+        )
 
     charter = read_json(client, guard_address, "get_charter", [DAO_ID])
     assert charter["precedent_total"] == charter["proposal_total"] == 2
@@ -380,7 +429,9 @@ def test_require_compliant_reverts_for_the_rejected_proposal(client, guard_addre
     assert status["is_compliant"] is False
     assert status["ruling"] == STATE["rejectedRuling"]
     assert status["mandate_class"] != "none"
-    assert status["principle"]
+    assert len(status["holding_digest"]) == 64, (
+        "compliance_status must publish the commitment to the derived holding"
+    )
 
 
 def test_a_landmark_is_recorded(client, guard_address):

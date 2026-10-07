@@ -4,3 +4,4 @@ __pycache__/
 .pytest_cache/
 .gltest_cache/
 .env
+.task-checklist.md

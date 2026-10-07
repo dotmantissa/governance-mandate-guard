@@ -65,8 +65,15 @@ class Ballot:
     """
     One vote on a proposal that cleared constitutional review.
 
-    `guard_ruling` and `guard_principle` are copied from the guard at open time.
-    They are the DAO's own record of the ruling that permitted this vote.
+    `guard_ruling` and `guard_principle` are copied from the guard at open time,
+    so the DAO keeps its own record of what permitted this vote.
+
+    They are not the same kind of fact. `guard_ruling` is consensus-bound: every
+    validator that accepted the adjudication reached it independently.
+    `guard_principle` is the sentence the panel recorded as its reasoning, which
+    the guard reports for human review without binding it, so it is display text
+    and nothing should branch on it. `guard_precedent_id` is the pointer to the
+    guard's derived holding, which is the part later adjudications are bound by.
     """
     proposal_id: str
     opened_by: Address
@@ -235,7 +242,9 @@ class MandateGatedDAO(gl.Contract):
         )
 
         # The check has passed. Copy the guard's reasoning into the DAO's own
-        # record so the justification for this vote is preserved locally.
+        # record so the justification for this vote is preserved locally. The
+        # principle is the panel's own unbound sentence, kept for people to
+        # read; the precedent id is what points at the bound case law.
         ruling = ""
         principle = ""
         precedent_id = ""

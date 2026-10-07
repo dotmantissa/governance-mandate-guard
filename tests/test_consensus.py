@@ -21,9 +21,13 @@ from conftest import (
     COMPLIANT_REPLY,
     CONSTITUTION,
     CONSTITUTION_URL,
+    GUARD_SOURCE,
     NON_COMPLIANT_REPLY,
     PROPOSAL_BODY,
     PROPOSAL_TITLE,
+    body_variant,
+    holding_of,
+    principle_digest_of,
     ruling_payload,
     submit,
 )
@@ -136,11 +140,19 @@ def test_disagreement_on_drift_fails_consensus(host, guard, accounts):
     assert guard.get_proposal_count("acme-dao") == 0
 
 
-def test_agreement_survives_different_prose(host, registered, accounts):
+def test_unbound_prose_does_not_block_agreement(host, registered, accounts):
     """
-    Only the decision is bound. Two nodes that agree on the ruling and the ground
-    must reach consensus even when their reasoning, clause citation and principle
-    are worded completely differently, because prose is reported, never gated.
+    The prose no later panel reads is reported, not gated.
+
+    `rationale` and `constitution_clause` are written for human review. Neither
+    is ever read into a precedent corpus, so neither can change a future
+    compliance outcome, and two nodes that word them completely differently
+    still reach consensus. The principle is held identical here on purpose: it
+    *is* bound, and the tests below are what exercise that.
+
+    The corpus assertion is the load-bearing half of this test. If either field
+    ever started reaching a later panel, it would have to be bound too, and this
+    would fail rather than quietly pass.
     """
     host.mock_llm(
         r"constitutional review panel",
@@ -148,15 +160,15 @@ def test_agreement_survives_different_prose(host, registered, accounts):
             ruling_payload(
                 ruling="NON_COMPLIANT",
                 mandate_class="treasury_mandate",
-                principle="Grants over the Article II ceiling are not permitted.",
+                principle="A grant above the 50,000 USDC ceiling is impermissible.",
                 clause="Article II section 2",
                 rationale="The amount is above the ceiling.",
             ),
             ruling_payload(
                 ruling="NON_COMPLIANT",
                 mandate_class="Treasury Mandate",
-                principle="The Treasury cannot exceed the fifty thousand dollar grant cap.",
-                clause="Art. II(2), grant ceiling",
+                principle="A grant above the 50,000 USDC ceiling is impermissible.",
+                clause="Art. II(2), the grant ceiling, read with the definitions",
                 rationale="Wholly different wording, same conclusion and same ground.",
             ),
         ],
@@ -166,6 +178,421 @@ def test_agreement_survives_different_prose(host, registered, accounts):
     assert verdict["ruling"] == "NON_COMPLIANT"
     assert verdict["mandate_class"] == "treasury_mandate"
     assert host.nondet_runs[-1]["validator_agreed"] is True
+
+    corpus = json.loads(registered.active_precedent_corpus("acme-dao"))
+    rendered = corpus["rendered"]
+    for unbound in ("Article II section 2", "Art. II(2)", "above the ceiling",
+                    "Wholly different wording"):
+        assert unbound not in rendered, (
+            f"{unbound!r} is unbound prose and must never reach a later panel"
+        )
+
+
+# ---------------------------------------------------------------------------
+# The ruling principle is reported; the case law is derived
+# ---------------------------------------------------------------------------
+#
+# A panel writes one prose sentence, the ruling principle, stating the rule it
+# thought the decision turned on. That sentence is free text no validator
+# checks, so it is recorded on the ruling for human review and nothing in the
+# contract treats it as case law.
+#
+# It cannot be bound. Five independent panels given the identical prompt, the
+# identical pinned constitution and the identical proposal returned the same
+# ruling and the same ground and wrote five substantively different rules: a
+# per-grant cap, a per-quarter cap, a cap plus a review period, an affirmative
+# dispensation, and no figure at all. Generalizing a rule from one decided case
+# is underdetermined, so neither comparing the two sentences nor checking the
+# leader's sentence against the constitution can settle it: both admit any of
+# the five and leave the leader choosing which becomes binding.
+#
+# So the holding a later panel reads is derived, by `_render_holding`, from the
+# three consensus-bound fields plus deterministic on chain data. These tests are
+# the proof that no leader prose can move it.
+
+def test_conflicting_principles_cannot_change_the_case_law(host, registered, accounts):
+    """
+    The reviewer's scenario, run end to end, and shown to be harmless.
+
+    Two panels agree on the ruling and the ground, which is what the validator
+    binds, and write irreconcilable rules: one caps a grant at 50,000 USDC, the
+    other at 500,000. Under a design that stored the leader's sentence as case
+    law, which rule a later panel inherited would depend on which node happened
+    to lead, and those two rules decide a 200,000 grant differently.
+
+    Here both runs are accepted and both produce byte-identical case law and an
+    identical corpus commitment. Neither cap appears anywhere in it.
+    """
+    def case_law_after(leader_principle: str, validator_principle: str) -> tuple:
+        host.reset()
+        host.warp(1_800_000_000)
+        host.mock_web(r"acme\.example/constitution$", {"status": 200, "body": CONSTITUTION})
+        guard = host.deploy(GUARD_SOURCE, "GovernanceMandateGuard",
+                            args=["Acme Governance Registry"], sender=accounts["deployer"])
+        guard.register_charter("Acme DAO", "Acme Protocol", CONSTITUTION_URL, 0, False, True,
+                               sender=accounts["steward"])
+        host.mock_llm(
+            r"constitutional review panel",
+            [
+                ruling_payload(ruling="NON_COMPLIANT", mandate_class="treasury_mandate",
+                               principle=leader_principle),
+                ruling_payload(ruling="NON_COMPLIANT", mandate_class="treasury_mandate",
+                               principle=validator_principle),
+            ],
+        )
+        guard.submit_proposal("acme-dao", PROPOSAL_TITLE, PROPOSAL_BODY,
+                              sender=accounts["proposer"])
+        assert host.nondet_runs[-1]["validator_agreed"] is True
+        corpus = json.loads(guard.active_precedent_corpus("acme-dao"))
+        return corpus["rendered"], corpus["corpus_digest"]
+
+    low = "A single grant may not exceed 50,000 USDC."
+    high = "A single grant may not exceed 500,000 USDC."
+
+    led_by_low = case_law_after(low, high)
+    led_by_high = case_law_after(high, low)
+
+    assert led_by_low == led_by_high, (
+        "which node led must not change the case law a later panel inherits"
+    )
+    rendered = led_by_low[0]
+    for unchecked in ("50,000", "500,000"):
+        assert unchecked not in rendered, (
+            f"{unchecked!r} came from one node's unchecked prose and must not "
+            f"reach a later panel"
+        )
+
+
+def test_the_holding_is_derived_not_authored(host, registered, accounts):
+    """
+    The stored holding is exactly what an outside reviewer re-derives from the
+    bound fields and the chain, computed here by an independent implementation.
+    """
+    host.mock_llm(
+        r"constitutional review panel",
+        ruling_payload(ruling="NON_COMPLIANT", mandate_class="treasury_mandate",
+                       principle="A single grant may not exceed 50,000 USDC."),
+    )
+    verdict = submit(registered, accounts)
+
+    expected = holding_of(ruling="NON_COMPLIANT", mandate_class="treasury_mandate",
+                          title=PROPOSAL_TITLE, charter_version=1)
+    assert verdict["holding"] == expected
+
+    precedent = json.loads(registered.get_precedent(verdict["precedent_id"]))
+    assert precedent["holding"] == expected
+    corpus = json.loads(registered.active_precedent_corpus("acme-dao"))
+    assert corpus["precedents"][0]["holding"] == expected
+
+
+def test_the_holding_carries_the_ground_only_when_there_is_one(host, registered, accounts):
+    """
+    A compliant proposal implicates no provision, so the holding names no ground.
+    A proposal decided on a provision names it, because that is the part of the
+    decision a later panel reasons from.
+    """
+    host.mock_llm(r"constitutional review panel", COMPLIANT_REPLY)
+    compliant = submit(registered, accounts)
+    assert "on the ground of" not in compliant["holding"]
+    assert "was ruled COMPLIANT." in compliant["holding"]
+
+    # Routes are matched in registration order, so the first reply would shadow
+    # the second. Clear and re-serve, which is how the registry suite sequences
+    # two different rulings against one charter.
+    host.clear_routes()
+    host.mock_web(r"acme\.example/constitution$", {"status": 200, "body": CONSTITUTION})
+    host.mock_llm(r"constitutional review panel", AMENDMENT_REPLY)
+    amended = submit(registered, accounts, title="Second", body=body_variant(7))
+    assert "on the ground of procedural_mandate" in amended["holding"]
+
+
+def test_the_holding_records_that_the_constitution_had_drifted(host, guard, accounts):
+    """
+    Drift is one of the three bound fields, so it can safely be stated in the
+    case law. A later panel needs to know a precedent was decided against text
+    that no longer matched the ratified document.
+    """
+    host.mock_web(
+        r"acme\.example/constitution$",
+        [
+            {"status": 200, "body": CONSTITUTION},
+            {"status": 200, "body": CONSTITUTION},
+            {"status": 200, "body": CONSTITUTION.replace("50,000 USDC", "50,000 USDC (see note)")},
+        ],
+    )
+    # `enforce_pinning=False`: this charter permits adjudication to continue
+    # against a drifted document and records the drift, which is the only
+    # configuration in which a holding can carry the drift note at all. Under
+    # enforcement the gate refuses instead, which its own test covers.
+    guard.register_charter("Acme DAO", "Acme Protocol", CONSTITUTION_URL, 0, False, False,
+                           sender=accounts["steward"])
+    host.mock_llm(r"constitutional review panel", COMPLIANT_REPLY)
+    verdict = guard.submit_proposal("acme-dao", PROPOSAL_TITLE, PROPOSAL_BODY,
+                                    sender=accounts["proposer"])
+    verdict = json.loads(verdict)
+
+    assert verdict["constitution_drift"] is True
+    assert "had drifted from the ratified text" in verdict["holding"]
+    assert verdict["holding"] == holding_of(drift=True, title=PROPOSAL_TITLE,
+                                            charter_version=1)
+
+
+def test_no_leader_prose_reaches_a_later_panel(host, registered, accounts):
+    """
+    The complete negative claim, over every free-text field at once.
+
+    Each of the five unbound fields is filled with a phrase that appears nowhere
+    else, and none of them may turn up in the case law, in any corpus entry
+    value or in the corpus commitment preimage. They are all present on the
+    ruling, because they are reported to people; that is the whole of their job.
+    """
+    markers = {
+        "principle": "A grant of up to 999,111 ZEBRA units is always permissible.",
+        "clause": "Appendix QQ, the aardvark provision",
+        "rationale": "Reasoning that mentions the quokka ledger at length.",
+        "amendments": "Rename the treasury to the wombat fund.",
+    }
+    host.mock_llm(
+        r"constitutional review panel",
+        ruling_payload(
+            ruling="AMENDMENT_REQUIRED", mandate_class="procedural_mandate",
+            principle=markers["principle"], clause=markers["clause"],
+            rationale=markers["rationale"], amendments=markers["amendments"],
+            citations=["acme-dao#r9000"],
+        ),
+    )
+    verdict = submit(registered, accounts)
+
+    ruling = json.loads(registered.get_ruling(verdict["proposal_id"]))
+    corpus = json.loads(registered.active_precedent_corpus("acme-dao"))
+    entry_text = json.dumps(corpus["precedents"][0])
+
+    for name, text in markers.items():
+        assert text in json.dumps(ruling), f"{name} must still be reported on the ruling"
+        assert text not in corpus["rendered"], (
+            f"{name} is unchecked prose and must not reach a later panel"
+        )
+        assert text not in entry_text, (
+            f"{name} must not appear in a corpus entry a later panel consumes"
+        )
+    assert "acme-dao#r9000" not in corpus["rendered"]
+
+
+def test_a_principle_too_short_to_state_a_rule_is_refused(host, registered, accounts):
+    """
+    "n/a" is not a principle. The sentence is unbound, but it is still reported
+    to people, so a reply that cannot carry a rule is an LLM error and forces
+    rotation rather than entering an empty line into the registry.
+    """
+    host.mock_llm(
+        r"constitutional review panel",
+        ruling_payload(ruling="COMPLIANT", mandate_class="none", principle="n/a"),
+    )
+
+    with pytest.raises(ConsensusFailure):
+        submit(registered, accounts)
+    assert "[LLM_ERROR]" in host.nondet_runs[-1]["leader_error"]
+    assert "too short" in host.nondet_runs[-1]["leader_error"]
+
+
+def test_differently_worded_principles_cost_no_extra_model_call(host, registered, accounts):
+    """
+    Binding only what can be bound keeps the adjudication to one model call per
+    node. Two nodes stating different rules agree, and no second call is made to
+    reconcile the prose, because nothing downstream depends on it.
+    """
+    host.mock_llm(
+        r"constitutional review panel",
+        [
+            ruling_payload(ruling="NON_COMPLIANT", mandate_class="treasury_mandate",
+                           principle="A single grant may not exceed 50,000 USDC."),
+            ruling_payload(ruling="NON_COMPLIANT", mandate_class="treasury_mandate",
+                           principle="Grants above the Article II ceiling are impermissible."),
+        ],
+    )
+
+    verdict = submit(registered, accounts)
+    assert host.nondet_runs[-1]["validator_agreed"] is True
+    assert len(host.llm_calls) == 2, "one adjudication per node, nothing more"
+    # The leader's sentence is what is reported, verbatim.
+    assert verdict["principle"] == "A single grant may not exceed 50,000 USDC."
+
+
+def test_the_prompt_tells_the_model_the_truth_about_what_binds(host, registered, accounts):
+    """
+    The prompt must not claim the principle is checked across validators, because
+    it is not. Telling a model its sentence will be compared when it will not be
+    is both false and a waste of the model's effort.
+    """
+    host.mock_llm(r"constitutional review panel", COMPLIANT_REPLY)
+    submit(registered, accounts)
+
+    prompt = host.llm_calls[-1]["prompt"]
+    assert "WHAT BINDS" in prompt
+    assert "does not need to match anyone else's" in prompt
+    assert "generated from them by the contract itself" in prompt
+
+
+def test_an_appeal_derives_its_own_holding(host, registered, accounts):
+    """
+    An appeal is a full re-adjudication that writes a new precedent, so its
+    holding is derived the same way from the re-hearing's own bound output. The
+    overruled precedent keeps the holding it was decided under.
+    """
+    host.mock_llm(
+        r"constitutional review panel",
+        ruling_payload(ruling="NON_COMPLIANT", mandate_class="treasury_mandate",
+                       principle="A single grant may not exceed 50,000 USDC."),
+    )
+    first = submit(registered, accounts)
+    assert first["ruling"] == "NON_COMPLIANT"
+
+    host.clear_routes()
+    host.mock_web(r"acme\.example/constitution$", {"status": 200, "body": CONSTITUTION})
+    host.mock_llm(r"constitutional review panel", COMPLIANT_REPLY)
+    appealed = json.loads(registered.appeal_ruling(
+        first["proposal_id"],
+        "The Council resolution authorising this transfer was cited in the body.",
+        sender=accounts["proposer"],
+    ))
+
+    assert appealed["ruling"] == "COMPLIANT"
+    assert appealed["holding"] == holding_of(ruling="COMPLIANT", mandate_class="none",
+                                            title=PROPOSAL_TITLE, charter_version=1)
+
+    original = json.loads(registered.get_precedent(first["precedent_id"]))
+    assert original["holding"] == holding_of(
+        ruling="NON_COMPLIANT", mandate_class="treasury_mandate",
+        title=PROPOSAL_TITLE, charter_version=1)
+    assert original["holding"] != appealed["holding"]
+
+
+# ---------------------------------------------------------------------------
+# Everything a later panel reads is bound or deterministic
+# ---------------------------------------------------------------------------
+
+def test_every_corpus_field_is_bound_or_deterministic(host, registered, accounts):
+    """
+    The structural guard on the whole class of defect.
+
+    A corpus entry is the complete set of fields a later adjudication consumes.
+    Every key in it must be consensus-bound or deterministic. This test
+    enumerates them against that promise, so a field added to `_corpus_entry`
+    later cannot quietly reintroduce an unbound, leader-authored input to future
+    rulings: the suite fails until the new field is classified.
+
+    `holding` and `holding_digest` are derived: `_render_holding` builds them
+    from the bound fields and the chain, with nothing a leader wrote freely as an
+    input, which is checked field by field by the derivation tests above.
+    """
+    consensus_bound = {"ruling", "mandate_class"}
+    derived = {"holding", "holding_digest"}
+    deterministic = {"precedent_id", "proposal_id", "charter_version",
+                     "landmark", "decided_at"}
+
+    host.mock_llm(r"constitutional review panel", NON_COMPLIANT_REPLY)
+    submit(registered, accounts)
+
+    corpus = json.loads(registered.active_precedent_corpus("acme-dao"))
+    assert corpus["precedents"], "need at least one precedent to inspect"
+
+    for entry in corpus["precedents"]:
+        unclassified = set(entry) - consensus_bound - derived - deterministic
+        assert not unclassified, (
+            f"{sorted(unclassified)} reach a later panel but are neither "
+            f"consensus-bound, derived from bound output, nor deterministic"
+        )
+        for field in consensus_bound | derived | deterministic:
+            assert field in entry, f"{field} is classified but no longer present"
+
+    # The unbound prose fields must be absent from the corpus entirely.
+    ruling = json.loads(registered.get_ruling("acme-dao#p0"))
+    for unbound in ("principle", "rationale", "constitution_clause",
+                    "required_amendments", "cited_precedents"):
+        assert unbound in ruling, f"{unbound} should still be reported on the ruling"
+        assert unbound not in corpus["precedents"][0], (
+            f"{unbound} is not consensus-bound and must not reach a later panel"
+        )
+
+
+def test_the_stored_holding_digest_commits_to_the_registry_text(host, registered, accounts):
+    """
+    The digest is what makes the stored precedent auditable. It is the
+    Keccak-256 of the canonical key of the holding, so anyone can recompute it
+    from the text in the registry and confirm the registry holds the case law
+    the panel's bound output generated rather than something edited in
+    afterwards.
+
+    The same digest appears on the ruling, on the precedent and in the corpus
+    entry, and it is mixed into the corpus commitment digest.
+    """
+    host.mock_llm(
+        r"constitutional review panel",
+        ruling_payload(ruling="NON_COMPLIANT", mandate_class="treasury_mandate",
+                       principle="A single grant may not exceed 50,000 USDC."),
+    )
+    verdict = submit(registered, accounts)
+
+    ruling = json.loads(registered.get_ruling(verdict["proposal_id"]))
+    precedent = json.loads(registered.get_precedent(verdict["precedent_id"]))
+    corpus = json.loads(registered.active_precedent_corpus("acme-dao"))
+
+    digest = verdict["holding_digest"]
+    assert len(digest) == 64
+    assert ruling["holding_digest"] == digest
+    assert precedent["holding_digest"] == digest
+    assert corpus["precedents"][0]["holding_digest"] == digest
+
+    # Recomputed independently of the contract, the way a reviewer would.
+    assert digest == principle_digest_of(precedent["holding"])
+
+    # It commits to the derived holding, not to the leader's sentence.
+    assert digest != principle_digest_of(ruling["principle"])
+
+
+def test_the_corpus_digest_tracks_the_holding_and_not_the_prose(host, registered, accounts):
+    """
+    The corpus commitment covers the derived holding, so it moves when the case
+    law moves and stays put when only unchecked prose moves.
+
+    Both halves matter. If the digest ignored the holding it would not be
+    evidence of what a past panel decided. If it tracked the prose, a leader
+    could move every future node's view of the registry by rewording a sentence
+    no one checked.
+    """
+    def digest_after(ruling: str, mandate_class: str, principle: str, title: str) -> str:
+        # An AMENDMENT_REQUIRED ruling that states no amendments is refused by
+        # the validator, so supply them for that ruling only.
+        amendments = "State the Council resolution number." if ruling == "AMENDMENT_REQUIRED" else ""
+        host.reset()
+        host.warp(1_800_000_000)
+        host.mock_web(r"acme\.example/constitution$", {"status": 200, "body": CONSTITUTION})
+        guard = host.deploy(GUARD_SOURCE, "GovernanceMandateGuard",
+                            args=["Acme Governance Registry"], sender=accounts["deployer"])
+        guard.register_charter("Acme DAO", "Acme Protocol", CONSTITUTION_URL, 0, False, True,
+                               sender=accounts["steward"])
+        host.mock_llm(
+            r"constitutional review panel",
+            ruling_payload(ruling=ruling, mandate_class=mandate_class, principle=principle,
+                           amendments=amendments),
+        )
+        guard.submit_proposal("acme-dao", title, PROPOSAL_BODY, sender=accounts["proposer"])
+        return json.loads(guard.active_precedent_corpus("acme-dao"))["corpus_digest"]
+
+    low = "A single grant may not exceed 50,000 USDC."
+    high = "A single grant may not exceed 500,000 USDC."
+
+    base = digest_after("NON_COMPLIANT", "treasury_mandate", low, PROPOSAL_TITLE)
+
+    # Unchecked prose cannot move the commitment.
+    assert digest_after("NON_COMPLIANT", "treasury_mandate", high, PROPOSAL_TITLE) == base
+
+    # A different ground of decision is a different holding.
+    assert digest_after("NON_COMPLIANT", "scope_mandate", low, PROPOSAL_TITLE) != base
+
+    # So are a different ruling and a different decided proposal.
+    assert digest_after("AMENDMENT_REQUIRED", "treasury_mandate", low, PROPOSAL_TITLE) != base
+    assert digest_after("NON_COMPLIANT", "treasury_mandate", low, "A different proposal") != base
 
 
 def test_compliant_rulings_ignore_the_mandate_class(host, registered, accounts):

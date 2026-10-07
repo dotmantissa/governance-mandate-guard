@@ -5,7 +5,7 @@ intelligent contract, from a front end or backend over JSON-RPC, and by running
 your own registry instance.
 
 The deployed registry on StudioNet is
-`0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e`. It is multi-tenant, so you do not
+`0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6`. It is multi-tenant, so you do not
 need to deploy anything to start using it. Register your charter and go.
 
 ---
@@ -18,7 +18,7 @@ synchronously while it decides whether to open a ballot.
 ### The one call that matters
 
 ```python
-guard = gl.get_contract_at(Address("0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e"))
+guard = gl.get_contract_at(Address("0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6"))
 if not guard.view().is_compliant(proposal_id):
     raise gl.vm.UserError("[EXPECTED] proposal did not clear constitutional review")
 ```
@@ -93,6 +93,12 @@ Three things in that snippet are worth copying rather than paraphrasing.
 a proposal that cleared the gate for yours. Without this check, one DAO's gate
 would launder proposals for another.
 
+**Treat `guard_principle` as display text.** It is the sentence the panel wrote,
+which the guard reports without binding, so it is the right thing to show a
+member reading why a vote was permitted and the wrong thing to branch on. Branch
+on `guard_ruling`, which is consensus-bound, and cite `guard_precedent_id` when
+you need the bound case law itself.
+
 **Read the gate, do not trust a stored flag.** `is_compliant` is a view, so you
 read the guard's live state at the moment the ballot opens. A ruling replaced by
 an appeal therefore governs from that moment. Copying the ruling into your own
@@ -157,7 +163,7 @@ inside the current transaction.
 from genlayer_py import create_account, create_client
 from genlayer_py.chains import studionet
 
-GUARD = "0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e"
+GUARD = "0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6"
 
 account = create_account("0x...")
 client = create_client(chain=studionet, account=account)
@@ -234,20 +240,20 @@ The method name is positional, and arguments follow `--args`:
 ```bash
 genlayer network set studionet
 
-genlayer call 0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e \
+genlayer call 0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6 \
   charter_exists --args acme-dao
 
-genlayer call 0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e \
+genlayer call 0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6 \
   is_compliant --args "acme-dao#p0"
 
-genlayer call 0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e \
+genlayer call 0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6 \
   active_precedent_corpus --args acme-dao
 
-genlayer write 0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e \
+genlayer write 0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6 \
   submit_proposal --args acme-dao "My proposal title" "My proposal body..."
 
-genlayer schema 0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e
-genlayer code 0x0D6759A08AbC0bC71bFA50EA33a220c95d84E15e
+genlayer schema 0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6
+genlayer code 0x67eAef1A9c24E9FFc365A20A1fe8b1c0323A82E6
 ```
 
 Quote any argument containing a space, and quote proposal ids because `#` is
@@ -378,6 +384,7 @@ The returned JSON carries the full ruling:
   "is_compliant": false,
   "mandate_class": "procedural_mandate",
   "principle": "A treasury proposal must name the Council resolution that authorises the transfer.",
+  "holding_digest": "9f2c41be07d3a5...",
   "required_amendments": "State the Council resolution number and the signing quorum in the proposal body.",
   "constitution_clause": "Article II, section 4.",
   "rationale": "The substance is permissible but the authorising resolution is not identified.",
@@ -389,6 +396,48 @@ The returned JSON carries the full ruling:
   "corpus_size": 8
 }
 ```
+
+Three of those fields were agreed by every validator that accepted the
+transaction: `ruling`, `mandate_class` and `constitution_drift`. All three are
+closed vocabularies compared character for character. The rest are the leader's,
+reported for human review. The distinction matters when you build on this, so do
+not treat `principle`, `rationale` or `constitution_clause` as though the panel
+agreed on them; `get_registry_info` returns the three lists under
+`consensus_bound_fields`, `derived_precedent_fields` and
+`reported_unbound_fields` if you want to surface them in a UI.
+
+`principle` is the sentence this panel recorded as the rule its decision turned
+on. It is unbound, and it deliberately never reaches a later adjudication. Show
+it to a human reading why a proposal failed; do not build logic on it, and do not
+present it as something the validators certified.
+
+What later adjudications consume is the holding, which the contract derives from
+the three bound fields plus the proposal's own title and the charter version:
+
+```
+Under charter v2, a proposal titled "Fund the quarterly security audit" was
+ruled AMENDMENT_REQUIRED, on the ground of procedural_mandate.
+```
+
+Because every input is bound or already on chain, every validator would render
+that string identically, so the case law carries nothing one node authored
+alone. `holding_digest` is the Keccak-256 of its canonical key: it is stored on
+both the ruling and the precedent, you can recompute it from the registry text,
+and it is mixed into `corpus_digest`. Read `get_precedent` for the holding
+itself, which that view returns as `holding`.
+
+The reason the holding is derived rather than agreed is empirical, and the README
+records the measurement: five independent panels given the identical prompt wrote
+five substantively different rules, one capping a grant per grant and another per
+quarter, so binding the sentence either deadlocks consensus or admits
+incompatible rules. The decision and its ground are what panels do agree on, so
+they are what the registry is built from.
+
+If a panel cannot agree on the ruling, the ground or the drift flag, the
+transaction fails consensus and nothing is written.
+
+A proposal that states its figures plainly is still easier to adjudicate, and
+is less likely to need a validator rotation.
 
 Bodies must be 40 to 6000 characters. Write the proposal as the thing to be
 adjudicated: state the amount, the recipient, the authority relied on, and the
@@ -489,13 +538,35 @@ The constants worth tuning are grouped at the top of the contract:
 | `MAX_CORPUS_LANDMARKS` | 6 | How many of those slots landmarks may take. |
 | `MAX_CORPUS_SCAN` | 64 | Bound on the backward walk over ordinary precedents. |
 | `MAX_BODY_LEN` | 6000 | Longest proposal accepted. |
-| `MAX_PRINCIPLE_LEN` | 240 | Longest precedent principle stored. |
+| `MAX_PRINCIPLE_LEN` | 240 | Longest panel principle stored on a ruling. |
+| `MIN_PRINCIPLE_LEN` | 12 | Shortest principle accepted. Below this a reply cannot state a rule and is an `[LLM_ERROR]`. |
+| `MAX_TITLE_LEN` | 200 | Longest proposal title, and the title is quoted inside every derived holding. |
 | `MAX_REVISIONS` | 2 | One original ruling plus one appeal. |
 | `MANDATE_CLASSES` | eight values | The taxonomy. Changing it changes what validators must agree on. |
 
 If you change `MANDATE_CLASSES`, keep it a closed set in priority order, and keep
 `MANDATE_KEYWORDS` covering every entry. The normalization has to be a total
 function or validators will disagree on phrasing rather than on judgment.
+
+`MIN_PRINCIPLE_LEN` and `MAX_PRINCIPLE_LEN` bound the panel's own principle
+sentence, which is reported for human review and is never read into a later
+adjudication. They affect what a steward sees, not what consensus binds, so they
+are safe to move.
+
+`MAX_TITLE_LEN` is different, because the title is quoted inside every derived
+holding. Lowering it truncates the facts a later panel reasons from, and changing
+it changes the text of holdings written after the change, so previously stored
+holdings and their digests stay as they were. That is correct, since a precedent
+records what was decided at the time, but it does mean two holdings of the same
+proposal under different limits are not byte-identical.
+
+If you edit the adjudication prompt, keep the sentence telling the panel that its
+ruling and its ground are compared exactly and that the case law is generated by
+the contract from them. The panel should spend its care on the ruling and the
+ground, because those are the fields that must match. Telling it instead that its
+principle sentence must agree with other validators would be false, and a prompt
+that misdescribes the consensus rule makes the model optimize for the wrong
+thing.
 
 ---
 

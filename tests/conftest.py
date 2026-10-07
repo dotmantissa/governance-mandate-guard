@@ -11,6 +11,7 @@ substitute in GenLayer's own tooling.
 from __future__ import annotations
 
 import json
+import re
 import sys
 
 from pathlib import Path
@@ -91,6 +92,57 @@ def ruling_payload(
     )
 
 
+# The ruling principle is prose a leader writes freely. It is recorded on the
+# ruling for human review and it is deliberately NOT what a later panel reads.
+# What a later panel reads is the holding, which the contract derives from the
+# three consensus-bound fields plus deterministic on-chain data.
+
+
+def holding_of(
+    ruling: str = "COMPLIANT",
+    mandate_class: str = "none",
+    drift: bool = False,
+    title: str = "Fund the documentation working group",
+    charter_version: int = 1,
+) -> str:
+    """
+    Re-derive a precedent's holding the way an outside reviewer would.
+
+    Deliberately an independent implementation of the contract's
+    `_render_holding`, written out here rather than imported, so a test that
+    checks the derivation is checking the contract rather than agreeing with
+    it. Every input is either consensus-bound (ruling, class, drift) or already
+    on chain (title, charter version), which is the point being verified.
+    """
+    ground = "" if mandate_class == "none" else f", on the ground of {mandate_class}"
+    drift_note = ""
+    if drift:
+        drift_note = (" The live constitution had drifted from the ratified text"
+                      " when this was decided.")
+    clean = re.sub(r"\s+", " ", str(title).strip())[:200] or "untitled proposal"
+    return (f"Under charter v{int(charter_version)}, a proposal titled "
+            f'"{clean}" was ruled {ruling}{ground}.{drift_note}')
+
+
+def principle_digest_of(principle: str) -> str:
+    """
+    Recompute a stored digest the way an outside reviewer would.
+
+    Deliberately an independent implementation. The canonicalization and the
+    Keccak-256 are written out here rather than imported from the contract, so a
+    test that checks the commitment is checking the contract rather than
+    agreeing with it. The preimage is the unit separator joined form the
+    contract's `_digest` builds, over the case folded key of the text.
+    """
+    from Crypto.Hash import keccak
+
+    folded = re.sub(r"\s+", " ", str(principle).strip().lower())
+    key = re.sub(r"[^a-z0-9]+", " ", folded).strip()
+    hasher = keccak.new(digest_bits=256)
+    hasher.update(("principle\x1f" + key).encode("utf-8"))
+    return hasher.hexdigest()
+
+
 COMPLIANT_REPLY = ruling_payload()
 NON_COMPLIANT_REPLY = ruling_payload(
     ruling="NON_COMPLIANT",
@@ -116,6 +168,14 @@ OVERSIZED_BODY = (
     "Allocate 1,200,000 USDC from the Treasury to Acme Labs as a strategic partnership "
     "tranche in this calendar quarter. Opening reserves for the quarter were 6,000,000 USDC."
 )
+
+
+def body_variant(index: int) -> str:
+    """A distinct proposal body, since identical text is refused as a replay."""
+    return (
+        f"Allocate {10_000 + index * 137} USDC from the Treasury to working group {index} "
+        f"for the coming quarter. Authorised by Council resolution 2027-{index:02d}."
+    )
 
 
 @pytest.fixture(scope="session")
